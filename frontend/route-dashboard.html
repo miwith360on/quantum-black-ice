@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Monitor - Quantum Black Ice System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="route-dashboard.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <div class="header-content">
+                    <h1 class="title">
+                        <span class="quantum-icon">❄️</span>
+                        Route Monitor Dashboard
+                    </h1>
+                    <div class="header-actions">
+                        <div class="status-indicator">
+                            <span class="status-dot" id="statusDot"></span>
+                            <span id="statusText">Initializing...</span>
+                        </div>
+                        <button id="backToMainBtn" class="btn btn-secondary" onclick="window.location.href='index.html'">
+                            ← Main Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container-fluid">
+                <div class="dashboard-grid">
+                    
+                    <!-- Left Sidebar - Route Controls -->
+                    <aside class="sidebar">
+                        <!-- Route Builder -->
+                        <section class="card">
+                            <h2>🗺️ Build Route</h2>
+                            <div class="route-builder">
+                                <p class="instruction">Click on map to add waypoints</p>
+                                <div id="waypointsList" class="waypoints-list">
+                                    <!-- Waypoints will be added here -->
+                                </div>
+                                <div class="button-group">
+                                    <button id="analyzeRouteBtn" class="btn btn-primary" disabled>
+                                        Analyze Route
+                                    </button>
+                                    <button id="clearRouteBtn" class="btn btn-secondary">
+                                        Clear All
+                                    </button>
+                                    <button id="saveRouteBtn" class="btn btn-success" disabled>
+                                        💾 Save Route
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Saved Routes -->
+                        <section class="card">
+                            <h2>📌 Saved Routes</h2>
+                            <div id="savedRoutesList" class="saved-routes-list">
+                                <p class="placeholder">No saved routes yet</p>
+                            </div>
+                        </section>
+
+                        <!-- Multi-Location Monitor -->
+                        <section class="card">
+                            <h2>📍 Quick Locations</h2>
+                            <div class="quick-locations">
+                                <button class="location-preset" data-lat="44.9778" data-lon="-93.2650">
+                                    Minneapolis
+                                </button>
+                                <button class="location-preset" data-lat="42.8864" data-lon="-78.8784">
+                                    Buffalo
+                                </button>
+                                <button class="location-preset" data-lat="39.7392" data-lon="-104.9903">
+                                    Denver
+                                </button>
+                                <button class="location-preset" data-lat="43.0731" data-lon="-89.4012">
+                                    Madison
+                                </button>
+                            </div>
+                        </section>
+                    </aside>
+
+                    <!-- Center - Main Map -->
+                    <section class="main-map-container">
+                        <div class="card no-padding">
+                            <div class="map-controls">
+                                <h2>🗺️ Interactive Route Map</h2>
+                                <div class="map-toggle-group">
+                                    <button class="map-toggle active" data-layer="standard">Standard</button>
+                                    <button class="map-toggle" data-layer="satellite">Satellite</button>
+                                    <button class="map-toggle" data-layer="terrain">Terrain</button>
+                                </div>
+                                <div class="overlay-controls">
+                                    <label>
+                                        <input type="checkbox" id="showHeatmap" checked>
+                                        Risk Heatmap
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" id="showRadar">
+                                        Weather Radar
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" id="showAlerts" checked>
+                                        Alert Zones
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="routeMap" class="route-map"></div>
+                        </div>
+
+                        <!-- Route Analysis Results -->
+                        <div class="card" id="routeAnalysisCard" style="display: none;">
+                            <h2>📊 Route Analysis Results</h2>
+                            <div class="route-summary">
+                                <div class="summary-grid">
+                                    <div class="summary-item">
+                                        <span class="summary-icon">🛣️</span>
+                                        <span class="summary-value" id="routeDistance">-</span>
+                                        <span class="summary-label">Total Distance</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-icon">⚠️</span>
+                                        <span class="summary-value" id="maxRisk">-</span>
+                                        <span class="summary-label">Max Risk</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-icon">✅</span>
+                                        <span class="summary-value" id="safetyScore">-</span>
+                                        <span class="summary-label">Safety Score</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-icon">🚨</span>
+                                        <span class="summary-value" id="dangerZones">-</span>
+                                        <span class="summary-label">Danger Zones</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Right Sidebar - Analysis Details -->
+                    <aside class="details-panel">
+                        <!-- Route Recommendations -->
+                        <section class="card">
+                            <h2>🎯 Route Recommendations</h2>
+                            <div id="routeRecommendations" class="recommendations-content">
+                                <p class="placeholder">Analyze a route to see recommendations</p>
+                            </div>
+                        </section>
+
+                        <!-- Danger Zones -->
+                        <section class="card">
+                            <h2>⚠️ Danger Zones</h2>
+                            <div id="dangerZonesList" class="danger-zones-list">
+                                <p class="placeholder">No danger zones detected</p>
+                            </div>
+                        </section>
+
+                        <!-- Segment Details -->
+                        <section class="card">
+                            <h2>📍 Route Segments</h2>
+                            <div id="segmentsList" class="segments-list">
+                                <p class="placeholder">Build a route to see segments</p>
+                            </div>
+                        </section>
+
+                        <!-- Live Weather Conditions -->
+                        <section class="card">
+                            <h2>🌡️ Current Conditions</h2>
+                            <div id="liveConditions" class="live-conditions">
+                                <p class="placeholder">Click on map to see conditions</p>
+                            </div>
+                        </section>
+                    </aside>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <p>Route Monitor - Quantum Black Ice Detection System &copy; 2025</p>
+                <p class="disclaimer">⚠️ Monitor your entire commute for dangerous black ice conditions</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Save Route Modal -->
+    <div id="saveRouteModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Save Route</h2>
+            <form id="saveRouteForm">
+                <div class="form-group">
+                    <label>Route Name:</label>
+                    <input type="text" id="routeName" placeholder="e.g., Home to Work" required>
+                </div>
+                <div class="form-group">
+                    <label>Description (optional):</label>
+                    <textarea id="routeDescription" placeholder="e.g., My daily commute via Highway 90"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Route</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Particle effect canvas -->
+    <canvas id="particles"></canvas>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <script src="route-dashboard.js"></script>
+    <script src="particles.js"></script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Black Ice Alert">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Black Ice Detection - Mobile</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icons/icon-120.png">
+    
+    <!-- iOS Splash Screens -->
+    <link rel="apple-touch-startup-image" href="splash/iphone-splash.png">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Mobile Styles -->
+    <link rel="stylesheet" href="mobile-styles.css">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Status Bar Spacer for iOS -->
+    <div class="status-bar-spacer"></div>
+    
+    <!-- App Container -->
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="mobile-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <span class="app-icon">🌨️</span>
+                    <h1 class="app-title">Black Ice Alert</h1>
+                </div>
+                <div class="header-right">
+                    <button class="icon-btn" id="refresh-btn" aria-label="Refresh">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" id="settings-btn" aria-label="Settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24m-4.24 4.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24m-4.24-4.24l-4.24-4.24"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Alert Banner -->
+        <div class="alert-banner" id="alert-banner" style="display: none;">
+            <div class="alert-content">
+                <span class="alert-icon">⚠️</span>
+                <span class="alert-text" id="alert-text"></span>
+            </div>
+            <button class="alert-close" id="alert-close">&times;</button>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- Risk Status Card -->
+            <div class="card risk-card">
+                <div class="risk-header">
+                    <h2 class="card-title">Current Risk Level</h2>
+                    <span class="connection-status" id="connection-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Connecting...</span>
+                    </span>
+                </div>
+                
+                <div class="risk-display">
+                    <div class="risk-circle" id="risk-circle">
+                        <div class="risk-percentage" id="risk-percentage">--</div>
+                        <div class="risk-label" id="risk-label">Analyzing...</div>
+                    </div>
+                </div>
+                
+                <div class="risk-details">
+                    <div class="detail-item">
+                        <span class="detail-icon">📍</span>
+                        <div class="detail-info">
+                            <div class="detail-label">Location</div>
+                            <div class="detail-value" id="location-text">Getting location...</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-icon">🌡️</span>
+                        <div class="detail-info">
+                            <div class="detail-label">Temperature</div>
+                            <div class="detail-value" id="temp-text">--°F</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-icon">💧</span>
+                        <div class="detail-info">
+                            <div class="detail-label">Humidity</div>
+                            <div class="detail-value" id="humidity-text">--%</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-icon">💨</span>
+                        <div class="detail-info">
+                            <div class="detail-label">Wind Speed</div>
+                            <div class="detail-value" id="wind-text">-- mph</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Prediction Card -->
+            <div class="card ai-card">
+                <h2 class="card-title">
+                    <span class="title-icon">🤖</span>
+                    AI Prediction
+                </h2>
+                <div class="ai-status">
+                    <div class="status-indicator" id="ml-status">
+                        <span class="status-dot"></span>
+                        <span id="ml-status-text">Initializing...</span>
+                    </div>
+                </div>
+                <div class="prediction-bar">
+                    <div class="bar-fill" id="confidence-bar"></div>
+                    <div class="bar-label">
+                        <span>Confidence</span>
+                        <span id="confidence-value">0%</span>
+                    </div>
+                </div>
+                <div class="prediction-result" id="prediction-result">
+                    Waiting for data...
+                </div>
+            </div>
+
+            <!-- Map Card -->
+            <div class="card map-card">
+                <h2 class="card-title">
+                    <span class="title-icon">🗺️</span>
+                    Live Radar
+                </h2>
+                <div class="map-container">
+                    <div id="map"></div>
+                    <div class="map-controls">
+                        <button class="map-btn" id="locate-btn" aria-label="Center on location">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="map-btn" id="layers-btn" aria-label="Toggle layers">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Layer Selector -->
+                <div class="layer-selector" id="layer-selector" style="display: none;">
+                    <div class="layer-option">
+                        <input type="checkbox" id="radar-layer" checked>
+                        <label for="radar-layer">Precipitation Radar</label>
+                    </div>
+                    <div class="layer-option">
+                        <input type="checkbox" id="temp-layer">
+                        <label for="temp-layer">Temperature</label>
+                    </div>
+                    <div class="layer-option">
+                        <input type="checkbox" id="wind-layer">
+                        <label for="wind-layer">Wind</label>
+                    </div>
+                    <div class="layer-option">
+                        <input type="checkbox" id="satellite-layer">
+                        <label for="satellite-layer">Satellite</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="card activity-card">
+                <h2 class="card-title">
+                    <span class="title-icon">📡</span>
+                    Live Updates
+                </h2>
+                <div class="activity-feed" id="activity-feed">
+                    <div class="activity-item">
+                        <span class="activity-time">Now</span>
+                        <span class="activity-text">Connecting to live stream...</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-view="home">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+                <span>Home</span>
+            </button>
+            <button class="nav-btn" data-view="map">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
+                </svg>
+                <span>Map</span>
+            </button>
+            <button class="nav-btn" data-view="alerts">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+                </svg>
+                <span>Alerts</span>
+            </button>
+            <button class="nav-btn" data-view="settings">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+                <span>Settings</span>
+            </button>
+        </nav>
+
+        <!-- Bottom Safe Area -->
+        <div class="bottom-safe-area"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="mobile.js"></script>
+</body>
+</html>

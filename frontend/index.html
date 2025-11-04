@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Black Ice Detection System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <h1 class="title">
+                    <span class="quantum-icon">❄️</span>
+                    Quantum Black Ice Detection System
+                </h1>
+                <div class="header-actions">
+                    <div class="status-indicator">
+                        <span class="status-dot" id="statusDot"></span>
+                        <span id="statusText">Initializing...</span>
+                    </div>
+                    <a href="route-dashboard.html" class="btn btn-primary">🗺️ Route Monitor</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container">
+                <!-- Control Panel -->
+                <section class="control-panel">
+                    <div class="card">
+                        <h2>Location Monitor</h2>
+                        <div class="input-group">
+                            <input type="number" id="latitude" placeholder="Latitude" step="0.0001">
+                            <input type="number" id="longitude" placeholder="Longitude" step="0.0001">
+                            <button id="monitorBtn" class="btn btn-primary">Monitor Location</button>
+                            <button id="getCurrentLocationBtn" class="btn btn-secondary">Use My Location</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Risk Display -->
+                <section class="risk-display">
+                    <div class="card" id="riskCard">
+                        <div class="risk-header">
+                            <h2>Current Risk Assessment</h2>
+                            <span class="timestamp" id="timestamp">-</span>
+                        </div>
+                        <div class="risk-content">
+                            <div class="risk-level-display" id="riskLevelDisplay">
+                                <div class="risk-gauge">
+                                    <div class="gauge-fill" id="gaugeFill"></div>
+                                </div>
+                                <h3 class="risk-level" id="riskLevel">NO DATA</h3>
+                                <p class="risk-probability" id="probability">-</p>
+                            </div>
+                            <div class="conditions-grid" id="conditionsGrid">
+                                <!-- Weather conditions will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Factors and Recommendations -->
+                <div class="info-grid">
+                    <section class="card">
+                        <h2>Risk Factors</h2>
+                        <div id="factorsList" class="factors-list">
+                            <p class="placeholder">Analyze a location to see risk factors</p>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <h2>Safety Recommendations</h2>
+                        <div id="recommendationsList" class="recommendations-list">
+                            <p class="placeholder">Recommendations will appear here</p>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Map -->
+                <section class="card">
+                    <h2>Location Map</h2>
+                    <div id="map" class="map-container"></div>
+                </section>
+
+                <!-- Statistics -->
+                <section class="card">
+                    <h2>System Statistics</h2>
+                    <div class="stats-grid" id="statsGrid">
+                        <div class="stat-item">
+                            <span class="stat-value" id="totalPredictions">-</span>
+                            <span class="stat-label">Total Predictions</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="activeAlerts">-</span>
+                            <span class="stat-label">Active Alerts</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="avgProbability">-</span>
+                            <span class="stat-label">Avg Risk (24h)</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent History -->
+                <section class="card">
+                    <h2>Recent History</h2>
+                    <div id="historyList" class="history-list">
+                        <p class="placeholder">No history available</p>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <p>Quantum Black Ice Detection System &copy; 2025 | Real-time weather monitoring and prediction</p>
+                <p class="disclaimer">⚠️ This system provides predictions based on available data. Always exercise caution when driving in winter conditions.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Particle effect canvas -->
+    <canvas id="particles"></canvas>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+    <script src="particles.js"></script>
+</body>
+</html>
