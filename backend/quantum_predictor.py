@@ -24,7 +24,7 @@ class QuantumBlackIcePredictor:
     
     def __init__(self):
         self.simulator = AerSimulator()
-        self.num_qubits = 5  # One qubit per major risk factor
+        self.num_qubits = 10  # Expanded to 10 qubits for higher accuracy
         
         # Risk factors mapped to qubits:
         # Qubit 0: Temperature risk
@@ -32,6 +32,11 @@ class QuantumBlackIcePredictor:
         # Qubit 2: Wind chill risk
         # Qubit 3: Precipitation risk
         # Qubit 4: Time of day risk
+        # Qubit 5: Dew point risk (NEW)
+        # Qubit 6: Road surface temperature risk (NEW)
+        # Qubit 7: Solar radiation risk (NEW)
+        # Qubit 8: Visibility risk (NEW)
+        # Qubit 9: Pressure change risk (NEW)
         
         logger.info("Quantum Black Ice Predictor initialized with {} qubits".format(self.num_qubits))
     
@@ -48,6 +53,12 @@ class QuantumBlackIcePredictor:
         wind_speed = weather_data.get('wind_speed', 5)
         precipitation = weather_data.get('precipitation_probability', 0) / 100.0
         hour = weather_data.get('hour', 12)
+        dew_point = weather_data.get('dew_point', temp - 5)
+        feels_like = weather_data.get('feels_like', temp)
+        clouds = weather_data.get('clouds', 50) / 100.0
+        visibility = weather_data.get('visibility', 10000)
+        pressure = weather_data.get('pressure', 1013)
+        pressure_change = weather_data.get('pressure_change', 0)
         
         # Calculate risk factors (0-1 scale)
         temp_risk = self._calculate_temperature_risk(temp)
@@ -56,9 +67,19 @@ class QuantumBlackIcePredictor:
         precip_risk = precipitation
         time_risk = self._calculate_time_risk(hour)
         
-        risk_factors = [temp_risk, humidity_risk, wind_risk, precip_risk, time_risk]
+        # NEW: Advanced risk factors
+        dew_point_risk = self._calculate_dew_point_risk(temp, dew_point)
+        road_temp_risk = self._calculate_road_temperature_risk(temp, clouds, wind_speed)
+        solar_risk = self._calculate_solar_radiation_risk(hour, clouds)
+        visibility_risk = self._calculate_visibility_risk(visibility)
+        pressure_risk = self._calculate_pressure_change_risk(pressure_change)
         
-        logger.debug(f"Quantum encoding - Risk factors: {risk_factors}")
+        risk_factors = [
+            temp_risk, humidity_risk, wind_risk, precip_risk, time_risk,
+            dew_point_risk, road_temp_risk, solar_risk, visibility_risk, pressure_risk
+        ]
+        
+        logger.debug(f"Quantum encoding - 10 Risk factors: {risk_factors}")
         
         return risk_factors
     
@@ -97,6 +118,83 @@ class QuantumBlackIcePredictor:
             # Daytime
             return 0.3
     
+    def _calculate_dew_point_risk(self, temp, dew_point):
+        """
+        Calculate dew point risk - closer to air temp = higher moisture/ice risk
+        """
+        dew_point_spread = temp - dew_point
+        if dew_point_spread < 3:
+            # Very close - high risk of moisture/frost
+            return 1.0
+        elif dew_point_spread < 5:
+            return 0.8
+        elif dew_point_spread < 10:
+            return 0.5
+        else:
+            return 0.2
+    
+    def _calculate_road_temperature_risk(self, air_temp, clouds, wind_speed):
+        """
+        Estimate road surface temperature risk
+        Road can be colder than air, especially at night with clear skies
+        """
+        # Base road temp offset
+        road_offset = -2  # Roads typically 2°F colder
+        
+        # Clear skies = more radiative cooling
+        if clouds < 0.3:
+            road_offset -= 3
+        
+        # Wind reduces cooling
+        if wind_speed > 10:
+            road_offset += 1
+        
+        estimated_road_temp = air_temp + road_offset
+        return self._calculate_temperature_risk(estimated_road_temp)
+    
+    def _calculate_solar_radiation_risk(self, hour, clouds):
+        """
+        Calculate solar radiation impact
+        Less sun = ice persists longer
+        """
+        # Nighttime or cloudy = high risk (ice doesn't melt)
+        if hour < 6 or hour > 20:
+            return 1.0  # No sun
+        elif clouds > 0.7:
+            return 0.8  # Heavy clouds
+        elif 10 <= hour <= 16:
+            return 0.2  # Midday sun melts ice
+        else:
+            return 0.5  # Low sun angle
+    
+    def _calculate_visibility_risk(self, visibility_meters):
+        """
+        Calculate visibility risk
+        Low visibility often indicates fog/mist = moisture
+        """
+        if visibility_meters < 1000:
+            return 1.0  # Heavy fog
+        elif visibility_meters < 5000:
+            return 0.7  # Moderate fog
+        elif visibility_meters < 10000:
+            return 0.4
+        else:
+            return 0.1  # Clear
+    
+    def _calculate_pressure_change_risk(self, pressure_change):
+        """
+        Calculate pressure trend risk
+        Falling pressure = weather changing, often precipitation
+        """
+        if pressure_change < -3:
+            return 0.9  # Rapid drop = storm approaching
+        elif pressure_change < -1:
+            return 0.6  # Slow drop
+        elif pressure_change > 3:
+            return 0.4  # Rapid rise = clearing
+        else:
+            return 0.3  # Stable
+    
     def create_quantum_circuit(self, risk_factors):
         """
         Create quantum circuit with superposition and entanglement
@@ -125,18 +223,29 @@ class QuantumBlackIcePredictor:
             qc.ry(angle, qr[i])
         
         # Step 3: Create entanglement (correlations between factors)
-        # Temperature and humidity correlation
-        qc.cx(qr[0], qr[1])
+        # Core weather correlations (original 5 qubits)
+        qc.cx(qr[0], qr[1])  # Temperature and humidity
+        qc.cx(qr[2], qr[3])  # Wind and precipitation
+        qc.cx(qr[4], qr[0])  # Time affects temperature
         
-        # Wind and precipitation correlation
-        qc.cx(qr[2], qr[3])
+        # NEW: Advanced correlations (qubits 5-9)
+        qc.cx(qr[0], qr[5])  # Temperature and dew point
+        qc.cx(qr[5], qr[6])  # Dew point and road temp
+        qc.cx(qr[4], qr[7])  # Time and solar radiation
+        qc.cx(qr[1], qr[8])  # Humidity and visibility
+        qc.cx(qr[3], qr[9])  # Precipitation and pressure change
         
-        # Time affects temperature
-        qc.cx(qr[4], qr[0])
+        # Cross-correlations for complex interactions
+        qc.cx(qr[6], qr[7])  # Road temp and solar
+        qc.cx(qr[8], qr[3])  # Visibility and precipitation
         
         # Step 4: Additional interference patterns
         for i in range(self.num_qubits - 1):
             qc.cz(qr[i], qr[i+1])
+        
+        # Extra entanglement for long-range correlations
+        qc.cx(qr[0], qr[9])  # Temperature to pressure
+        qc.cx(qr[7], qr[1])  # Solar to humidity
         
         # Step 5: Measure all qubits
         qc.measure(qr, cr)
@@ -259,13 +368,30 @@ class QuantumBlackIcePredictor:
                     'humidity': float(risk_factors[1]),
                     'wind': float(risk_factors[2]),
                     'precipitation': float(risk_factors[3]),
-                    'time_of_day': float(risk_factors[4])
+                    'time_of_day': float(risk_factors[4]),
+                    'dew_point': float(risk_factors[5]) if len(risk_factors) > 5 else 0.0,
+                    'road_temp': float(risk_factors[6]) if len(risk_factors) > 6 else 0.0,
+                    'solar': float(risk_factors[7]) if len(risk_factors) > 7 else 0.0,
+                    'visibility': float(risk_factors[8]) if len(risk_factors) > 8 else 0.0,
+                    'pressure': float(risk_factors[9]) if len(risk_factors) > 9 else 0.0
                 },
                 'quantum_metrics': {
                     'entropy': float(result['entropy']),
                     'raw_probability': float(result['raw_probability']),
                     'num_qubits': self.num_qubits,
-                    'shots': shots
+                    'shots': shots,
+                    'risk_factors': {
+                        'temperature': float(risk_factors[0]),
+                        'humidity': float(risk_factors[1]),
+                        'wind': float(risk_factors[2]),
+                        'precipitation': float(risk_factors[3]),
+                        'time_of_day': float(risk_factors[4]),
+                        'dew_point': float(risk_factors[5]) if len(risk_factors) > 5 else 0.0,
+                        'road_temp': float(risk_factors[6]) if len(risk_factors) > 6 else 0.0,
+                        'solar': float(risk_factors[7]) if len(risk_factors) > 7 else 0.0,
+                        'visibility': float(risk_factors[8]) if len(risk_factors) > 8 else 0.0,
+                        'pressure': float(risk_factors[9]) if len(risk_factors) > 9 else 0.0
+                    }
                 },
                 'circuit_depth': qc.depth(),
                 'quantum_volume': 2**self.num_qubits

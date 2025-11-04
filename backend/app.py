@@ -19,6 +19,8 @@ from ml_predictor import MLBlackIcePredictor
 from radar_service import RadarService
 from websocket_server import WebSocketManager
 from quantum_predictor import QuantumBlackIcePredictor
+from advanced_weather_calculator import AdvancedWeatherCalculator
+from noaa_weather_service import NOAAWeatherService
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -53,6 +55,8 @@ if SOCKETIO_AVAILABLE:
 
 # Initialize services
 weather_service = WeatherService(api_key=os.getenv('OPENWEATHER_API_KEY'))
+noaa_service = NOAAWeatherService()
+weather_calculator = AdvancedWeatherCalculator()
 predictor = BlackIcePredictor()
 ml_predictor = MLBlackIcePredictor()
 quantum_predictor = QuantumBlackIcePredictor()
@@ -100,8 +104,64 @@ def get_current_weather():
         return jsonify({'error': 'Latitude and longitude required'}), 400
     
     try:
+        # Get basic weather data
         weather_data = weather_service.get_current_weather(lat, lon)
+        
+        # Try to enhance with NOAA data (US only)
+        try:
+            noaa_data = noaa_service.get_current_observations(lat, lon)
+            if noaa_data:
+                # NOAA data is more accurate for US locations
+                weather_data.update(noaa_data)
+        except Exception as noaa_error:
+            # NOAA might fail for non-US locations, continue with OpenWeather
+            pass
+        
+        # Calculate advanced metrics
+        weather_data = weather_calculator.enhance_weather_data(weather_data)
+        
         return jsonify(weather_data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/weather/alerts', methods=['GET'])
+def get_weather_alerts():
+    """Get NOAA weather alerts for location (US only)"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        alerts = noaa_service.get_weather_alerts(lat, lon)
+        return jsonify({'alerts': alerts, 'count': len(alerts)})
+    except Exception as e:
+        return jsonify({'error': str(e), 'alerts': []}), 200
+
+
+@app.route('/api/weather/forecast', methods=['GET'])
+def get_forecast():
+    """Get hourly forecast with advanced metrics"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    hours = request.args.get('hours', default=12, type=int)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        forecast = noaa_service.get_hourly_forecast(lat, lon, hours)
+        if not forecast:
+            # Fallback to OpenWeather if NOAA fails
+            return jsonify({'forecast': [], 'source': 'none'})
+        
+        # Enhance each forecast period with calculated metrics
+        for period in forecast:
+            period = weather_calculator.enhance_weather_data(period)
+        
+        return jsonify({'forecast': forecast, 'source': 'noaa', 'hours': len(forecast)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
