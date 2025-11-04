@@ -243,7 +243,7 @@ async function fetchWeatherData() {
     
     try {
         const response = await fetch(
-            `${API_BASE}/api/weather?lat=${currentLocation.lat}&lng=${currentLocation.lng}`
+            `${API_BASE}/api/weather/current?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
         );
         const data = await response.json();
         
