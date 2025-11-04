@@ -31,7 +31,18 @@ except ImportError:
 
 load_dotenv()
 
-app = Flask(__name__)
+# Determine if running in production (Railway)
+is_production = os.getenv('RAILWAY_ENVIRONMENT') is not None
+
+# Set static folder path - in production, frontend is one level up
+if is_production:
+    static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
+else:
+    static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
+
+app = Flask(__name__, 
+            static_folder=static_folder,
+            static_url_path='')
 CORS(app)
 
 # Initialize SocketIO for real-time WebSocket streaming
@@ -53,6 +64,20 @@ route_monitor = RouteMonitor(weather_service, predictor)
 ws_manager = WebSocketManager(socketio)
 if socketio:
     ws_manager.initialize(app, socketio)
+
+
+# Serve frontend files
+@app.route('/')
+def index():
+    """Serve the mobile PWA interface"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, 'mobile.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    """Serve static files (CSS, JS, images, etc.)"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, path)
 
 
 @app.route('/api/health', methods=['GET'])
