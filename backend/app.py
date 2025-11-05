@@ -23,6 +23,9 @@ from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
 from road_risk_analyzer import RoadRiskAnalyzer
 from traffic_monitor import TrafficMonitor
+from satellite_service import SatelliteService
+from openmeteo_service import OpenMeteoService
+from gps_context_system import GPSContextSystem
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -58,6 +61,8 @@ if SOCKETIO_AVAILABLE:
 # Initialize services
 weather_service = WeatherService(api_key=os.getenv('OPENWEATHER_API_KEY'))
 noaa_service = NOAAWeatherService()
+openmeteo_service = OpenMeteoService()
+satellite_service = SatelliteService()
 weather_calculator = AdvancedWeatherCalculator()
 predictor = BlackIcePredictor()
 ml_predictor = MLBlackIcePredictor()
@@ -67,6 +72,9 @@ db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
 road_analyzer = RoadRiskAnalyzer()
 traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
+
+# Initialize GPS context system with integrated services
+gps_context = GPSContextSystem(road_analyzer, quantum_predictor, openmeteo_service)
 
 # Initialize WebSocket manager
 ws_manager = WebSocketManager(socketio)
@@ -664,6 +672,147 @@ def get_combined_hazards():
         return jsonify({'error': str(e)}), 500
 
 
+# ==================== SATELLITE & ADVANCED WEATHER ENDPOINTS ====================
+
+@app.route('/api/satellite/thermal', methods=['GET'])
+def get_satellite_thermal():
+    """Get NASA satellite thermal imagery for ice detection"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        thermal_data = satellite_service.get_thermal_imagery(lat, lon)
+        return jsonify(thermal_data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/satellite/regional', methods=['GET'])
+def get_regional_ice_map():
+    """Get wide-area satellite ice formation map"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        regional_data = satellite_service.get_regional_ice_map(lat, lon)
+        return jsonify(regional_data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/weather/openmeteo', methods=['GET'])
+def get_openmeteo_weather():
+    """
+    Get high-accuracy weather from OpenMeteo
+    Includes ROAD SURFACE TEMPERATURE - critical for black ice!
+    """
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        weather_data = openmeteo_service.get_current_weather(lat, lon)
+        return jsonify(weather_data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/weather/forecast-enhanced', methods=['GET'])
+def get_enhanced_forecast():
+    """Get hourly forecast with road surface temperature"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    hours = request.args.get('hours', type=int, default=12)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        forecast = openmeteo_service.get_hourly_forecast(lat, lon, hours)
+        return jsonify(forecast)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== GPS CONTEXT & DYNAMIC QUANTUM ALERTS ====================
+
+@app.route('/api/gps/update', methods=['POST'])
+def gps_location_update():
+    """
+    Update GPS location and get real-time quantum alerts
+    Returns dynamic alerts like "High Quantum Risk on Bridge XYZ - 0.84 probability"
+    """
+    try:
+        data = request.get_json()
+        lat = data.get('lat')
+        lon = data.get('lon')
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        # Get enhanced weather from OpenMeteo (includes road temp!)
+        weather_data = openmeteo_service.get_current_weather(lat, lon)
+        
+        # Update GPS context and get quantum-powered alerts
+        context = gps_context.update_location(lat, lon, weather_data)
+        
+        return jsonify(context)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gps/nearest-hazard', methods=['GET'])
+def get_nearest_hazard():
+    """Get the nearest bridge/overpass with quantum risk"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        # Make sure GPS context is updated
+        weather_data = openmeteo_service.get_current_weather(lat, lon)
+        gps_context.update_location(lat, lon, weather_data)
+        
+        hazard = gps_context.get_nearest_hazard(lat, lon)
+        
+        if hazard:
+            return jsonify(hazard)
+        else:
+            return jsonify({'message': 'No hazards nearby', 'hazard': None})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gps/route-preview', methods=['POST'])
+def preview_route():
+    """Preview quantum risk along a route before driving"""
+    try:
+        data = request.get_json()
+        dest_lat = data.get('destination_lat')
+        dest_lon = data.get('destination_lon')
+        
+        if not dest_lat or not dest_lon:
+            return jsonify({'error': 'destination_lat and destination_lon required'}), 400
+        
+        preview = gps_context.get_route_preview(dest_lat, dest_lon)
+        return jsonify(preview)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ==================== WEBSOCKET STATUS ENDPOINT ====================
 
 @app.route('/api/websocket/status', methods=['GET'])
@@ -690,10 +839,14 @@ if __name__ == '__main__':
     
     print(f"🌨️  Quantum Black Ice Detection System starting on port {port}")
     print(f"🤖 AI/ML Model: {'Loaded' if ml_predictor.is_trained else 'Not trained yet'}")
+    print(f"⚛️  Quantum Predictor: 10-Qubit System Active")
     print(f"🛰️  Radar Service: Active")
+    print(f"🛰️  NASA Satellite: Active (MODIS/VIIRS Thermal)")
+    print(f"🌍 OpenMeteo: Active (Road Surface Temp)")
     print(f"📡 WebSocket: {'Enabled' if SOCKETIO_AVAILABLE else 'Disabled (install flask-socketio)'}")
     print(f"🗺️  Road Risk Analyzer: Active (OpenStreetMap)")
     print(f"🚦 Traffic Monitor: {'Active' if os.getenv('GOOGLE_MAPS_API_KEY') else 'Inactive (no API key)'}")
+    print(f"📍 GPS Context System: Active (Quantum Alerts)")
     
     if not is_production:
         print(f"\n💡 Open: http://localhost:{port}")
