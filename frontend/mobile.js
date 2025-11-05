@@ -351,17 +351,20 @@ function updateLocationText(text) {
 }
 
 function updateWeatherDisplay(data) {
-    // Update temperature
-    const temp = data.temperature || data.temp || '--';
-    document.getElementById('temp-text').textContent = `${temp}°F`;
+    // Update temperature - round to 1 decimal place
+    const temp = data.temperature || data.temp;
+    const tempText = temp ? Math.round(temp * 10) / 10 : '--';
+    document.getElementById('temp-text').textContent = `${tempText}°F`;
     
-    // Update humidity
-    const humidity = data.humidity || '--';
-    document.getElementById('humidity-text').textContent = `${humidity}%`;
+    // Update humidity - round to whole number
+    const humidity = data.humidity;
+    const humidityText = humidity ? Math.round(humidity) : '--';
+    document.getElementById('humidity-text').textContent = `${humidityText}%`;
     
-    // Update wind
-    const wind = data.wind_speed || data.wind || '--';
-    document.getElementById('wind-text').textContent = `${wind} mph`;
+    // Update wind - round to 1 decimal place
+    const wind = data.wind_speed || data.wind;
+    const windText = wind ? Math.round(wind * 10) / 10 : '--';
+    document.getElementById('wind-text').textContent = `${windText} mph`;
 }
 
 function updatePredictionDisplay(data) {
