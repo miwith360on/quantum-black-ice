@@ -19,6 +19,7 @@ from ml_predictor import MLBlackIcePredictor
 from radar_service import RadarService
 from websocket_server import WebSocketManager
 from quantum_predictor import QuantumBlackIcePredictor
+from quantum_predictor_v2 import QuantumBlackIcePredictorV2
 from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
 from road_risk_analyzer import RoadRiskAnalyzer
@@ -67,6 +68,7 @@ weather_calculator = AdvancedWeatherCalculator()
 predictor = BlackIcePredictor()
 ml_predictor = MLBlackIcePredictor()
 quantum_predictor = QuantumBlackIcePredictor()
+quantum_predictor_v2 = QuantumBlackIcePredictorV2()  # NEW: 20-qubit system!
 radar_service = RadarService()
 db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
@@ -481,6 +483,129 @@ def quantum_circuit_visualization():
         return jsonify({'error': str(e)}), 500
 
 
+# ==================== NEW: QUANTUM V2 (20-QUBIT) ENDPOINTS ====================
+
+@app.route('/api/quantum/v2/predict', methods=['POST'])
+def quantum_v2_predict():
+    """20-qubit quantum prediction with hyper-local micro-climate modeling"""
+    data = request.json
+    
+    if not data or 'weather_data' not in data:
+        return jsonify({'error': 'Weather data required'}), 400
+    
+    try:
+        weather_data = data['weather_data']
+        location_context = data.get('location_context', {})
+        
+        result = quantum_predictor_v2.predict(weather_data, location_context)
+        
+        return jsonify({
+            'success': True,
+            'quantum_v2_prediction': result
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/quantum/v2/model-info', methods=['GET'])
+def quantum_v2_model_info():
+    """Get Quantum V2 (20-qubit) model architecture information"""
+    return jsonify({
+        'success': True,
+        'model_info': {
+            'name': 'Quantum Black Ice Predictor V2',
+            'version': 'V2_20QUBIT',
+            'num_qubits': 20,
+            'quantum_volume': 1048576,  # 2^20
+            'circuit_depth': 24,
+            'entanglement_layers': 4,
+            'qubit_categories': {
+                'Core Weather (0-4)': [
+                    'Q0: Temperature Risk',
+                    'Q1: Humidity/Moisture Risk',
+                    'Q2: Wind Chill Risk',
+                    'Q3: Precipitation Risk',
+                    'Q4: Time of Day Risk'
+                ],
+                'Surface Conditions (5-9)': [
+                    'Q5: Dew Point Risk',
+                    'Q6: Road Surface Temperature Risk',
+                    'Q7: Solar Radiation Risk',
+                    'Q8: Visibility Risk',
+                    'Q9: Pressure Change Risk'
+                ],
+                'Micro-Climate (10-14)': [
+                    'Q10: Elevation/Terrain Risk',
+                    'Q11: Shade/Sun Exposure Risk',
+                    'Q12: Traffic Heat Dissipation',
+                    'Q13: Pavement Type/Thermal Mass',
+                    'Q14: Recent Weather History (Cooling Rate)'
+                ],
+                'Location-Specific (15-19)': [
+                    'Q15: Bridge/Overpass Proximity',
+                    'Q16: Water Body Proximity (Humidity)',
+                    'Q17: Urban Heat Island Effect',
+                    'Q18: Tree Cover/Wind Blockage',
+                    'Q19: Micro-Elevation Changes'
+                ]
+            },
+            'quantum_gates': ['Hadamard', 'RY Rotation', 'CNOT', 'CZ'],
+            'simulator': 'AerSimulator',
+            'shots': 16384,
+            'features': [
+                'Hyper-local micro-climate predictions',
+                '20-dimensional quantum state space',
+                'Deep entanglement (4 layers)',
+                'Location-aware risk factors',
+                'Traffic heat signature analysis',
+                'Pavement thermal mass modeling',
+                'Bridge cooling effect modeling',
+                'Urban heat island correction'
+            ]
+        }
+    })
+
+@app.route('/api/quantum/compare', methods=['POST'])
+def quantum_compare_versions():
+    """Compare V1 (10-qubit) vs V2 (20-qubit) predictions"""
+    data = request.json
+    
+    if not data or 'weather_data' not in data:
+        return jsonify({'error': 'Weather data required'}), 400
+    
+    try:
+        weather_data = data['weather_data']
+        location_context = data.get('location_context', {})
+        
+        # Run both predictors
+        v1_result = quantum_predictor.predict(weather_data)
+        v2_result = quantum_predictor_v2.predict(weather_data, location_context)
+        
+        return jsonify({
+            'success': True,
+            'comparison': {
+                'v1': {
+                    'model': '10-qubit',
+                    'probability': v1_result['probability'],
+                    'risk_level': v1_result['risk_level'],
+                    'quantum_volume': v1_result['quantum_metrics']['quantum_volume']
+                },
+                'v2': {
+                    'model': '20-qubit',
+                    'probability': v2_result['probability'],
+                    'risk_level': v2_result['risk_level'],
+                    'quantum_volume': v2_result['quantum_metrics']['quantum_volume']
+                },
+                'improvement': {
+                    'quantum_volume_increase': f"{(v2_result['quantum_metrics']['quantum_volume'] / v1_result['quantum_metrics']['quantum_volume']):.0f}x",
+                    'additional_factors': 10,
+                    'location_aware': True
+                }
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ==================== NEW: RADAR & SATELLITE ENDPOINTS ====================
 
 @app.route('/api/radar/layers', methods=['GET'])
@@ -839,7 +964,8 @@ if __name__ == '__main__':
     
     print(f"🌨️  Quantum Black Ice Detection System starting on port {port}")
     print(f"🤖 AI/ML Model: {'Loaded' if ml_predictor.is_trained else 'Not trained yet'}")
-    print(f"⚛️  Quantum Predictor: 10-Qubit System Active")
+    print(f"⚛️  Quantum V1: 10-Qubit System Active")
+    print(f"⚛️  Quantum V2: 20-Qubit System Active (HYPER-LOCAL!)")
     print(f"🛰️  Radar Service: Active")
     print(f"🛰️  NASA Satellite: Active (MODIS/VIIRS Thermal)")
     print(f"🌍 OpenMeteo: Active (Road Surface Temp)")
