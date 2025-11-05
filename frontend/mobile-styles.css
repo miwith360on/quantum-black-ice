@@ -715,3 +715,150 @@ body {
         height: 250px;
     }
 }
+
+/* ==================== ROAD RISK & TRAFFIC STYLES ==================== */
+
+/* Road Risk Markers */
+.road-risk-marker {
+    background: transparent !important;
+    border: none !important;
+    text-align: center;
+}
+
+.marker-icon {
+    font-size: 24px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    display: block;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.bridge-marker .marker-icon {
+    filter: drop-shadow(0 0 8px rgba(255, 59, 48, 0.8));
+}
+
+.overpass-marker .marker-icon {
+    filter: drop-shadow(0 0 6px rgba(255, 149, 0, 0.8));
+}
+
+.tunnel-marker .marker-icon {
+    filter: drop-shadow(0 0 4px rgba(255, 204, 0, 0.8));
+}
+
+/* Risk Popup */
+.risk-popup h3 {
+    color: var(--danger);
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.risk-popup p {
+    font-size: 12px;
+    margin: 4px 0;
+    color: var(--text-primary);
+}
+
+.risk-popup strong {
+    color: var(--primary);
+}
+
+/* Hazards Card */
+.hazards-card {
+    margin-bottom: 20px;
+}
+
+.hazards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.hazard-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    border-left: 4px solid;
+}
+
+.hazard-item.critical {
+    border-color: var(--danger);
+    background: linear-gradient(90deg, rgba(255, 59, 48, 0.1) 0%, var(--bg-tertiary) 100%);
+}
+
+.hazard-item.high {
+    border-color: var(--warning);
+    background: linear-gradient(90deg, rgba(255, 149, 0, 0.1) 0%, var(--bg-tertiary) 100%);
+}
+
+.hazard-item.medium {
+    border-color: #FFD60A;
+    background: linear-gradient(90deg, rgba(255, 214, 10, 0.1) 0%, var(--bg-tertiary) 100%);
+}
+
+.hazard-icon {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.hazard-details {
+    flex: 1;
+}
+
+.hazard-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.hazard-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.hazard-warning {
+    font-size: 13px;
+    color: var(--warning);
+    font-weight: 500;
+}
+
+.no-hazards {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.success-icon {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.no-hazards p {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.loading-text {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+/* Layer Selector Updates */
+.layer-option label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+

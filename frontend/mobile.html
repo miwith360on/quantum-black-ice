@@ -146,6 +146,17 @@
                 </div>
             </div>
 
+            <!-- Road Hazards Card -->
+            <div class="card hazards-card">
+                <h2 class="card-title">
+                    <span class="title-icon">⚠️</span>
+                    Road Hazards Nearby
+                </h2>
+                <div id="hazards-content">
+                    <div class="loading-text">Scanning for bridges and high-risk roads...</div>
+                </div>
+            </div>
+
             <!-- Map Card -->
             <div class="card map-card">
                 <h2 class="card-title">
@@ -174,19 +185,27 @@
                 <div class="layer-selector" id="layer-selector" style="display: none;">
                     <div class="layer-option">
                         <input type="checkbox" id="radar-layer" checked>
-                        <label for="radar-layer">Precipitation Radar</label>
+                        <label for="radar-layer">🌧️ Precipitation Radar</label>
                     </div>
                     <div class="layer-option">
                         <input type="checkbox" id="temp-layer">
-                        <label for="temp-layer">Temperature</label>
+                        <label for="temp-layer">🌡️ Temperature</label>
                     </div>
                     <div class="layer-option">
                         <input type="checkbox" id="wind-layer">
-                        <label for="wind-layer">Wind</label>
+                        <label for="wind-layer">💨 Wind</label>
+                    </div>
+                    <div class="layer-option">
+                        <input type="checkbox" id="traffic-layer">
+                        <label for="traffic-layer">🚦 Live Traffic</label>
+                    </div>
+                    <div class="layer-option">
+                        <input type="checkbox" id="road-risk-layer" checked>
+                        <label for="road-risk-layer">🌉 Bridge/Road Hazards</label>
                     </div>
                     <div class="layer-option">
                         <input type="checkbox" id="satellite-layer">
-                        <label for="satellite-layer">Satellite</label>
+                        <label for="satellite-layer">🛰️ Satellite</label>
                     </div>
                 </div>
             </div>

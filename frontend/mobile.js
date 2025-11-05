@@ -18,6 +18,8 @@ let radarLayer = null;
 let temperatureLayer = null;
 let windLayer = null;
 let satelliteLayer = null;
+let trafficLayer = null;
+let roadRiskMarkers = [];
 let currentView = 'home';
 
 // Initialize app when DOM is ready
@@ -157,6 +159,11 @@ async function getUserLocation() {
             
             // Fetch weather data
             fetchWeatherData();
+            
+            // Fetch road risks if layer is enabled
+            if (document.getElementById('road-risk-layer').checked) {
+                fetchRoadRisks();
+            }
         },
         (error) => {
             console.error('Location error:', error);
@@ -619,6 +626,22 @@ function setupEventListeners() {
         }
     });
     
+    document.getElementById('traffic-layer').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            fetchTrafficLayer();
+        } else if (trafficLayer) {
+            map.removeLayer(trafficLayer);
+        }
+    });
+    
+    document.getElementById('road-risk-layer').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            fetchRoadRisks();
+        } else {
+            clearRoadRiskMarkers();
+        }
+    });
+    
     // Bottom navigation
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -674,6 +697,217 @@ async function fetchSatelliteLayer() {
     }
 }
 
+async function fetchTrafficLayer() {
+    console.log('🚦 Fetching traffic layer...');
+    try {
+        const response = await fetch(`${API_BASE}/api/traffic/tile-url`);
+        const data = await response.json();
+        
+        if (data.available && data.tile_url) {
+            if (trafficLayer) map.removeLayer(trafficLayer);
+            trafficLayer = L.tileLayer(data.tile_url, {
+                opacity: 0.7,
+                zIndex: 1000
+            }).addTo(map);
+            console.log('✅ Traffic layer added');
+            showAlert('Live traffic overlay enabled', 'success');
+        } else {
+            console.warn('⚠️ Traffic layer not available:', data.message);
+            showAlert(data.message || 'Traffic layer requires Google Maps API key', 'info');
+            // Uncheck the box
+            document.getElementById('traffic-layer').checked = false;
+        }
+    } catch (error) {
+        console.error('❌ Traffic layer fetch failed:', error);
+        showAlert('Unable to load traffic data', 'error');
+        document.getElementById('traffic-layer').checked = false;
+    }
+}
+
+async function fetchRoadRisks() {
+    if (!currentLocation.lat || !currentLocation.lng) {
+        console.warn('⚠️ No location available for road risk analysis');
+        return;
+    }
+    
+    console.log('🌉 Fetching road risks...');
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/road/analyze?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius=5000`
+        );
+        const data = await response.json();
+        
+        console.log('✅ Road risks received:', data);
+        
+        // Clear existing markers
+        clearRoadRiskMarkers();
+        
+        // Add bridge markers (RED - highest risk)
+        data.bridges?.forEach(bridge => {
+            const marker = L.marker(bridge.center, {
+                icon: L.divIcon({
+                    className: 'road-risk-marker bridge-marker',
+                    html: '<span class="marker-icon">🌉</span>',
+                    iconSize: [30, 30]
+                })
+            }).addTo(map);
+            
+            marker.bindPopup(`
+                <div class="risk-popup">
+                    <h3>⚠️ BRIDGE - HIGH RISK</h3>
+                    <p><strong>${bridge.name}</strong></p>
+                    <p>Bridges freeze FIRST! Risk multiplier: ${bridge.risk_multiplier}x</p>
+                    <p>Distance: ${bridge.distance}m</p>
+                </div>
+            `);
+            
+            roadRiskMarkers.push(marker);
+        });
+        
+        // Add overpass markers (ORANGE - high risk)
+        data.overpasses?.forEach(overpass => {
+            const marker = L.marker(overpass.center, {
+                icon: L.divIcon({
+                    className: 'road-risk-marker overpass-marker',
+                    html: '<span class="marker-icon">🛣️</span>',
+                    iconSize: [28, 28]
+                })
+            }).addTo(map);
+            
+            marker.bindPopup(`
+                <div class="risk-popup">
+                    <h3>⚠️ OVERPASS</h3>
+                    <p><strong>${overpass.name}</strong></p>
+                    <p>Elevated roads freeze early. Risk: ${overpass.risk_multiplier}x</p>
+                    <p>Distance: ${overpass.distance}m</p>
+                </div>
+            `);
+            
+            roadRiskMarkers.push(marker);
+        });
+        
+        // Add tunnel markers (YELLOW - moderate risk at entrances)
+        data.tunnels?.forEach(tunnel => {
+            const marker = L.marker(tunnel.center, {
+                icon: L.divIcon({
+                    className: 'road-risk-marker tunnel-marker',
+                    html: '<span class="marker-icon">🚇</span>',
+                    iconSize: [26, 26]
+                })
+            }).addTo(map);
+            
+            marker.bindPopup(`
+                <div class="risk-popup">
+                    <h3>⚠️ TUNNEL ENTRANCE</h3>
+                    <p><strong>${tunnel.name}</strong></p>
+                    <p>Ice forms at temperature transitions</p>
+                    <p>Distance: ${tunnel.distance}m</p>
+                </div>
+            `);
+            
+            roadRiskMarkers.push(marker);
+        });
+        
+        // Update hazards card
+        updateHazardsDisplay(data);
+        
+        const totalHazards = (data.bridges?.length || 0) + 
+                           (data.overpasses?.length || 0) + 
+                           (data.tunnels?.length || 0);
+        
+        if (totalHazards > 0) {
+            showAlert(`Found ${totalHazards} road hazards nearby`, 'warning');
+        } else {
+            showAlert('No major road hazards detected nearby', 'success');
+        }
+        
+    } catch (error) {
+        console.error('❌ Road risk fetch failed:', error);
+        showAlert('Unable to load road risk data', 'error');
+    }
+}
+
+function clearRoadRiskMarkers() {
+    roadRiskMarkers.forEach(marker => map.removeLayer(marker));
+    roadRiskMarkers = [];
+}
+
+function updateHazardsDisplay(data) {
+    const content = document.getElementById('hazards-content');
+    
+    const totalBridges = data.bridges?.length || 0;
+    const totalOverpasses = data.overpasses?.length || 0;
+    const totalTunnels = data.tunnels?.length || 0;
+    const totalCurves = data.dangerous_curves?.length || 0;
+    
+    if (totalBridges + totalOverpasses + totalTunnels === 0) {
+        content.innerHTML = `
+            <div class="no-hazards">
+                <span class="success-icon">✅</span>
+                <p>No major road hazards detected within 5km</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="hazards-list">';
+    
+    if (totalBridges > 0) {
+        const closest = data.bridges[0];
+        html += `
+            <div class="hazard-item critical">
+                <span class="hazard-icon">🌉</span>
+                <div class="hazard-details">
+                    <div class="hazard-title">⚠️ ${totalBridges} Bridge${totalBridges > 1 ? 's' : ''} Nearby</div>
+                    <div class="hazard-subtitle">Closest: ${closest.name} (${closest.distance}m)</div>
+                    <div class="hazard-warning">Bridges freeze FIRST - even if roads are clear!</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (totalOverpasses > 0) {
+        const closest = data.overpasses[0];
+        html += `
+            <div class="hazard-item high">
+                <span class="hazard-icon">🛣️</span>
+                <div class="hazard-details">
+                    <div class="hazard-title">${totalOverpasses} Overpass${totalOverpasses > 1 ? 'es' : ''}</div>
+                    <div class="hazard-subtitle">Closest: ${closest.name} (${closest.distance}m)</div>
+                    <div class="hazard-warning">Elevated roads freeze before ground level</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (totalTunnels > 0) {
+        html += `
+            <div class="hazard-item medium">
+                <span class="hazard-icon">🚇</span>
+                <div class="hazard-details">
+                    <div class="hazard-title">${totalTunnels} Tunnel${totalTunnels > 1 ? 's' : ''}</div>
+                    <div class="hazard-warning">Ice at temperature transitions</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (totalCurves > 0) {
+        html += `
+            <div class="hazard-item medium">
+                <span class="hazard-icon">🔄</span>
+                <div class="hazard-details">
+                    <div class="hazard-title">${totalCurves} Dangerous Curve${totalCurves > 1 ? 's' : ''}</div>
+                    <div class="hazard-warning">Reduce speed if icy</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    content.innerHTML = html;
+}
+
 // View switching (for future multi-view support)
 function switchView(view) {
     currentView = view;
@@ -708,6 +942,13 @@ function startPeriodicUpdates() {
     setInterval(() => {
         checkMLStatus();
     }, 60000); // 1 minute
+    
+    // Update road risks every 10 minutes (if layer is enabled)
+    setInterval(() => {
+        if (document.getElementById('road-risk-layer').checked && currentLocation.lat) {
+            fetchRoadRisks();
+        }
+    }, 600000); // 10 minutes
 }
 
 // Handle app install prompt

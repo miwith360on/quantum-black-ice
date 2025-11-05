@@ -21,6 +21,8 @@ from websocket_server import WebSocketManager
 from quantum_predictor import QuantumBlackIcePredictor
 from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
+from road_risk_analyzer import RoadRiskAnalyzer
+from traffic_monitor import TrafficMonitor
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -63,6 +65,8 @@ quantum_predictor = QuantumBlackIcePredictor()
 radar_service = RadarService()
 db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
+road_analyzer = RoadRiskAnalyzer()
+traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
 
 # Initialize WebSocket manager
 ws_manager = WebSocketManager(socketio)
@@ -520,7 +524,147 @@ def get_composite_layers():
         return jsonify({'error': str(e)}), 500
 
 
-# ==================== NEW: WEBSOCKET STATUS ENDPOINT ====================
+# ==================== NEW: ROAD RISK & TRAFFIC ENDPOINTS ====================
+
+@app.route('/api/road/analyze', methods=['GET'])
+def analyze_road_risks():
+    """
+    Analyze road features for black ice risk zones
+    Query params: lat, lon, radius (optional, default 5000m)
+    """
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius = request.args.get('radius', type=float, default=5000)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        road_features = road_analyzer.get_high_risk_roads(lat, lon, radius)
+        return jsonify(road_features)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/traffic/current', methods=['GET'])
+def get_traffic_conditions():
+    """
+    Get real-time traffic conditions
+    Query params: lat, lon, radius (optional, default 5000m)
+    """
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius = request.args.get('radius', type=int, default=5000)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        traffic = traffic_monitor.get_traffic_conditions(lat, lon, radius)
+        return jsonify(traffic)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/traffic/tile-url', methods=['GET'])
+def get_traffic_tile_url():
+    """Get URL for traffic layer tiles (for map overlay)"""
+    zoom = request.args.get('zoom', type=int, default=13)
+    
+    try:
+        tile_url = traffic_monitor.get_traffic_tile_url(zoom)
+        if tile_url:
+            return jsonify({'tile_url': tile_url, 'available': True})
+        else:
+            return jsonify({
+                'available': False,
+                'message': 'Traffic layer requires GOOGLE_MAPS_API_KEY environment variable'
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/route/analyze-traffic', methods=['POST'])
+def analyze_route_traffic():
+    """
+    Analyze traffic along a route with ice risk
+    POST body: { "origin": [lat, lon], "destination": [lat, lon], "weather_risk": 0-100 }
+    """
+    try:
+        data = request.get_json()
+        origin = tuple(data.get('origin', []))
+        destination = tuple(data.get('destination', []))
+        weather_risk = data.get('weather_risk', 0)
+        
+        if len(origin) != 2 or len(destination) != 2:
+            return jsonify({'error': 'origin and destination must be [lat, lon] arrays'}), 400
+        
+        result = traffic_monitor.analyze_route_traffic(origin, destination, weather_risk)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/hazards/combined', methods=['GET'])
+def get_combined_hazards():
+    """
+    Get combined road + weather + traffic risk assessment
+    Query params: lat, lon
+    """
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon required'}), 400
+    
+    try:
+        # Get weather data
+        weather_data = weather_service.get_current_weather(lat, lon)
+        
+        # Try to enhance with NOAA if in US
+        try:
+            noaa_data = noaa_service.get_current_observations(lat, lon)
+            if noaa_data:
+                weather_data.update(noaa_data)
+        except:
+            pass
+        
+        # Calculate advanced metrics
+        weather_data = weather_calculator.enhance_weather_data(weather_data)
+        
+        # Get quantum prediction
+        quantum_result = quantum_predictor.predict(weather_data)
+        weather_risk = quantum_result['probability'] * 100
+        
+        # Get road features
+        road_features = road_analyzer.get_high_risk_roads(lat, lon)
+        
+        # Get traffic conditions
+        traffic = traffic_monitor.get_traffic_conditions(lat, lon)
+        
+        # Calculate combined risk
+        combined = road_analyzer.calculate_route_risk(road_features, weather_risk)
+        
+        return jsonify({
+            'weather': {
+                'temperature': weather_data.get('temperature'),
+                'humidity': weather_data.get('humidity'),
+                'conditions': weather_data.get('description'),
+                'risk_score': weather_risk
+            },
+            'quantum_analysis': quantum_result,
+            'road_features': road_features,
+            'traffic': traffic,
+            'combined_risk': combined,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== WEBSOCKET STATUS ENDPOINT ====================
 
 @app.route('/api/websocket/status', methods=['GET'])
 def websocket_status():
@@ -548,6 +692,8 @@ if __name__ == '__main__':
     print(f"🤖 AI/ML Model: {'Loaded' if ml_predictor.is_trained else 'Not trained yet'}")
     print(f"🛰️  Radar Service: Active")
     print(f"📡 WebSocket: {'Enabled' if SOCKETIO_AVAILABLE else 'Disabled (install flask-socketio)'}")
+    print(f"🗺️  Road Risk Analyzer: Active (OpenStreetMap)")
+    print(f"🚦 Traffic Monitor: {'Active' if os.getenv('GOOGLE_MAPS_API_KEY') else 'Inactive (no API key)'}")
     
     if not is_production:
         print(f"\n💡 Open: http://localhost:{port}")
