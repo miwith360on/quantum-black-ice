@@ -6,6 +6,9 @@ const API_BASE = window.location.origin.includes('localhost')
     ? 'http://localhost:5000' 
     : window.location.origin;
 
+console.log('🔧 API_BASE configured as:', API_BASE);
+console.log('🌍 Current origin:', window.location.origin);
+
 // Global state
 let map = null;
 let socket = null;
@@ -25,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Main initialization
 async function initializeApp() {
+    // Test API connection first
+    await testAPIConnection();
+    
     // Register service worker
     registerServiceWorker();
     
@@ -47,6 +53,24 @@ async function initializeApp() {
     startPeriodicUpdates();
     
     console.log('✅ App initialized successfully');
+}
+
+// Test API connection
+async function testAPIConnection() {
+    console.log('🔍 Testing API connection to:', API_BASE);
+    try {
+        const response = await fetch(`${API_BASE}/api/health`);
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ API health check passed:', data);
+        } else {
+            console.error('❌ API health check failed:', response.status, response.statusText);
+            showAlert('Cannot connect to server. Please check your connection.', 'error');
+        }
+    } catch (error) {
+        console.error('❌ API connection error:', error);
+        showAlert(`Server connection failed: ${error.message}`, 'error');
+    }
 }
 
 // Register Service Worker for PWA
@@ -241,19 +265,30 @@ async function checkMLStatus() {
 async function fetchWeatherData() {
     if (!currentLocation.lat || !currentLocation.lng) return;
     
+    console.log('🌤️ Fetching weather for:', currentLocation);
+    console.log('🔗 API URL:', `${API_BASE}/api/weather/current?lat=${currentLocation.lat}&lon=${currentLocation.lng}`);
+    
     try {
         const response = await fetch(
             `${API_BASE}/api/weather/current?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
         );
+        
+        console.log('📡 Weather response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        console.log('✅ Weather data received:', data);
         
         updateWeatherDisplay(data);
         
         // Get ML prediction
         getPrediction(data);
     } catch (error) {
-        console.error('Weather fetch failed:', error);
-        showAlert('Unable to fetch weather data', 'error');
+        console.error('❌ Weather fetch failed:', error);
+        showAlert(`Unable to fetch weather data: ${error.message}`, 'error');
     }
 }
 
