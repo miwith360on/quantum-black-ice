@@ -28,6 +28,7 @@ from satellite_service import SatelliteService
 from openmeteo_service import OpenMeteoService
 from gps_context_system import GPSContextSystem
 from ml_road_temp_model import MLRoadSurfaceTempModel
+from iot_sensor_network import IoTSensorNetwork
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -71,6 +72,7 @@ ml_predictor = MLBlackIcePredictor()
 quantum_predictor = QuantumBlackIcePredictor()
 quantum_predictor_v2 = QuantumBlackIcePredictorV2()  # NEW: 20-qubit system!
 ml_road_temp = MLRoadSurfaceTempModel()  # NEW: ML Road Surface Temp Model!
+iot_network = IoTSensorNetwork()  # NEW: IoT Sensor Network!
 radar_service = RadarService()
 db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
@@ -1133,6 +1135,147 @@ def websocket_status():
         return jsonify({'error': str(e)}), 500
 
 
+# ==================== IOT SENSOR NETWORK ====================
+
+@app.route('/api/iot/sensors/nearby', methods=['GET'])
+def get_nearby_iot_sensors():
+    """Get IoT sensors near a location"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        radius = request.args.get('radius', type=float, default=10)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        sensors = iot_network.get_nearby_sensors(lat, lon, radius)
+        
+        return jsonify({
+            'success': True,
+            'num_sensors': len(sensors),
+            'sensors': [
+                {
+                    'sensor_id': s.sensor_id,
+                    'type': s.sensor_type.value,
+                    'location': s.location,
+                    'protocol': s.protocol.value,
+                    'is_active': s.is_active
+                }
+                for s in sensors
+            ]
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/iot/data', methods=['GET'])
+def get_iot_sensor_data():
+    """Get aggregated IoT sensor data for a location"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        radius = request.args.get('radius', type=float, default=10)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        data = iot_network.get_sensor_data(lat, lon, radius)
+        
+        return jsonify({
+            'success': True,
+            'sensor_data': data
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/iot/bridge-temp', methods=['GET'])
+def get_bridge_temperature():
+    """Get bridge deck temperature from IoT sensors"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        bridge_name = request.args.get('name', 'Unknown Bridge')
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        temp = iot_network.get_bridge_temperature(lat, lon, bridge_name)
+        
+        if temp is None:
+            return jsonify({
+                'success': False,
+                'message': 'No bridge deck sensors available',
+                'bridge_name': bridge_name
+            })
+        
+        return jsonify({
+            'success': True,
+            'bridge_name': bridge_name,
+            'temperature': temp,
+            'unit': '°F',
+            'warning': temp <= 32
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/iot/enhanced-prediction', methods=['POST'])
+def get_iot_enhanced_prediction():
+    """
+    Quantum prediction enhanced with real IoT sensor validation
+    Combines:
+    - Quantum V2 20-qubit prediction
+    - Real bridge deck temperature sensors
+    - Road moisture detectors
+    - Weather station data
+    """
+    try:
+        data = request.get_json()
+        
+        lat = data.get('lat')
+        lon = data.get('lon')
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        # 1. Get weather data
+        weather_data = openmeteo_service.get_current_weather(lat, lon)
+        
+        # 2. Get Quantum V2 prediction
+        location_context = data.get('location_context', {})
+        quantum_result = quantum_predictor_v2.predict(weather_data, location_context)
+        
+        # 3. Enhance with IoT sensor data
+        enhanced = iot_network.integrate_with_quantum_prediction(
+            lat, lon, quantum_result
+        )
+        
+        return jsonify({
+            'success': True,
+            'enhanced_prediction': enhanced
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/iot/network-status', methods=['GET'])
+def get_iot_network_status():
+    """Get IoT sensor network status"""
+    try:
+        status = iot_network.get_network_status()
+        return jsonify({
+            'success': True,
+            'network_status': status
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # Initialize database
     db.initialize()
@@ -1150,7 +1293,8 @@ if __name__ == '__main__':
     print(f"🤖 ML Road Temp: {'Trained' if ml_road_temp.is_trained else 'Not trained (using physics-based)'}")
     print(f"⚛️  Quantum V1: 10-Qubit System Active")
     print(f"⚛️  Quantum V2: 20-Qubit System Active (HYPER-LOCAL!)")
-    print(f"🛰️  Radar Service: Active")
+    print(f"� IoT Sensor Network: {iot_network.get_network_status()['active_sensors']} sensors active")
+    print(f"�🛰️  Radar Service: Active")
     print(f"🛰️  NASA Satellite: Active (MODIS/VIIRS Thermal)")
     print(f"🌍 OpenMeteo: Active (Road Surface Temp)")
     print(f"📡 WebSocket: {'Enabled' if SOCKETIO_AVAILABLE else 'Disabled (install flask-socketio)'}")
