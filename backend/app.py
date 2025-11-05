@@ -27,6 +27,7 @@ from traffic_monitor import TrafficMonitor
 from satellite_service import SatelliteService
 from openmeteo_service import OpenMeteoService
 from gps_context_system import GPSContextSystem
+from ml_road_temp_model import MLRoadSurfaceTempModel
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -69,6 +70,7 @@ predictor = BlackIcePredictor()
 ml_predictor = MLBlackIcePredictor()
 quantum_predictor = QuantumBlackIcePredictor()
 quantum_predictor_v2 = QuantumBlackIcePredictorV2()  # NEW: 20-qubit system!
+ml_road_temp = MLRoadSurfaceTempModel()  # NEW: ML Road Surface Temp Model!
 radar_service = RadarService()
 db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
@@ -897,6 +899,187 @@ def gps_location_update():
 
 @app.route('/api/gps/nearest-hazard', methods=['GET'])
 def get_nearest_hazard():
+    """Get nearest road hazard (bridge/overpass) from GPS location"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        hazard = gps_context.get_nearest_hazard(lat, lon)
+        return jsonify(hazard)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gps/route-preview', methods=['POST'])
+def get_route_preview():
+    """Preview route hazards before driving"""
+    try:
+        data = request.get_json()
+        destination = data.get('destination')
+        
+        if not destination:
+            return jsonify({'error': 'destination required'}), 400
+        
+        preview = gps_context.get_route_preview(destination)
+        return jsonify(preview)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== ML ROAD SURFACE TEMPERATURE ====================
+
+@app.route('/api/ml/road-temp/predict', methods=['POST'])
+def ml_road_temp_predict():
+    """
+    Predict exact road surface temperature using ML model
+    Combines satellite, quantum, traffic, and weather data
+    """
+    try:
+        data = request.get_json()
+        
+        current_data = data.get('current_data', {})
+        historical_sequence = data.get('historical_sequence', [])
+        
+        if not current_data.get('weather'):
+            return jsonify({'error': 'weather data required'}), 400
+        
+        # Predict road temperature
+        prediction = ml_road_temp.predict_road_temperature(
+            current_data,
+            historical_sequence
+        )
+        
+        return jsonify({
+            'success': True,
+            'prediction': prediction
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/ml/road-temp/train', methods=['POST'])
+def ml_road_temp_train():
+    """
+    Train ML road temperature model on historical data
+    """
+    try:
+        data = request.get_json()
+        
+        training_data = data.get('training_data', [])
+        epochs = data.get('epochs', 50)
+        batch_size = data.get('batch_size', 32)
+        
+        if len(training_data) < 100:
+            return jsonify({'error': 'Need at least 100 training samples'}), 400
+        
+        # Train model
+        history = ml_road_temp.train_model(
+            training_data,
+            epochs=epochs,
+            batch_size=batch_size
+        )
+        
+        return jsonify({
+            'success': True,
+            'training_history': history,
+            'model_info': ml_road_temp.get_model_info()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/ml/road-temp/info', methods=['GET'])
+def ml_road_temp_info():
+    """Get ML road temperature model information"""
+    return jsonify({
+        'success': True,
+        'model_info': ml_road_temp.get_model_info()
+    })
+
+
+@app.route('/api/ml/road-temp/enhanced-prediction', methods=['POST'])
+def ml_road_temp_enhanced():
+    """
+    Enhanced prediction that combines ALL data sources:
+    - Current weather
+    - Satellite thermal imaging
+    - Quantum V2 prediction
+    - Traffic heat signatures
+    - Location micro-climate
+    """
+    try:
+        data = request.get_json()
+        
+        lat = data.get('lat')
+        lon = data.get('lon')
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        # === GATHER ALL DATA SOURCES ===
+        
+        # 1. Weather data
+        weather_data = openmeteo_service.get_current_weather(lat, lon)
+        weather_data['latitude'] = lat
+        weather_data['longitude'] = lon
+        
+        # 2. Satellite thermal data
+        try:
+            satellite_data = satellite_service.get_thermal_imagery(lat, lon)
+        except:
+            satellite_data = None
+        
+        # 3. Quantum V2 prediction (20-qubit with micro-climate)
+        try:
+            location_context = data.get('location_context', {})
+            quantum_result = quantum_predictor_v2.predict(weather_data, location_context)
+        except:
+            quantum_result = None
+        
+        # 4. Traffic data
+        try:
+            traffic_data = traffic_monitor.get_traffic_conditions(lat, lon, radius=1000)
+        except:
+            traffic_data = None
+        
+        # === COMBINE INTO ML PREDICTION ===
+        
+        current_data = {
+            'weather': weather_data,
+            'satellite': satellite_data,
+            'quantum': quantum_result,
+            'traffic': traffic_data,
+            'location': location_context
+        }
+        
+        prediction = ml_road_temp.predict_road_temperature(current_data)
+        
+        return jsonify({
+            'success': True,
+            'ml_prediction': prediction,
+            'data_sources_used': {
+                'weather': weather_data is not None,
+                'satellite': satellite_data is not None,
+                'quantum_v2': quantum_result is not None,
+                'traffic': traffic_data is not None
+            },
+            'openmeteo_road_temp': weather_data.get('road_surface_temp'),
+            'quantum_ice_probability': quantum_result.get('probability') if quantum_result else None
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gps/nearest-hazard', methods=['GET'])
+def get_nearest_hazard():
     """Get the nearest bridge/overpass with quantum risk"""
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
@@ -964,6 +1147,7 @@ if __name__ == '__main__':
     
     print(f"🌨️  Quantum Black Ice Detection System starting on port {port}")
     print(f"🤖 AI/ML Model: {'Loaded' if ml_predictor.is_trained else 'Not trained yet'}")
+    print(f"🤖 ML Road Temp: {'Trained' if ml_road_temp.is_trained else 'Not trained (using physics-based)'}")
     print(f"⚛️  Quantum V1: 10-Qubit System Active")
     print(f"⚛️  Quantum V2: 20-Qubit System Active (HYPER-LOCAL!)")
     print(f"🛰️  Radar Service: Active")
