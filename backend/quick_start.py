@@ -60,7 +60,31 @@ def get_current_weather():
         return jsonify({'error': 'Latitude and longitude required'}), 400
     
     try:
-        weather_data = weather_service.get_current_weather(lat, lon)
+        # Try OpenWeather first (if API key exists)
+        weather_data = None
+        try:
+            weather_data = weather_service.get_current_weather(lat, lon)
+        except Exception as e:
+            print(f"⚠️ OpenWeather API failed: {e}, falling back to OpenMeteo")
+            # Fallback to OpenMeteo (no API key needed)
+            import requests
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
+            response = requests.get(url)
+            if response.status_code == 200:
+                meteo_data = response.json()['current']
+                weather_data = {
+                    'temperature': meteo_data['temperature_2m'],
+                    'humidity': meteo_data['relative_humidity_2m'],
+                    'wind_speed': meteo_data['wind_speed_10m'],
+                    'wind_direction': meteo_data['wind_direction_10m'],
+                    'precipitation': meteo_data['precipitation'],
+                    'weather_code': meteo_data['weather_code'],
+                    'location': {'lat': lat, 'lon': lon},
+                    'source': 'OpenMeteo'
+                }
+        
+        if not weather_data:
+            return jsonify({'error': 'Unable to fetch weather data'}), 500
         
         # Try NOAA for US locations
         try:
@@ -75,6 +99,7 @@ def get_current_weather():
         
         return jsonify(weather_data)
     except Exception as e:
+        print(f"❌ Weather endpoint error: {e}")
         return jsonify({'error': str(e)}), 500
 
 # Quantum prediction endpoint

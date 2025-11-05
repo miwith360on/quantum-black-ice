@@ -568,11 +568,176 @@ function setupEventListeners() {
         addActivityItem('Manually refreshed');
     });
     
-    // Settings button
-    document.getElementById('settings-btn').addEventListener('click', () => {
-        // Implement settings modal
-        showAlert('Settings coming soon!', 'info');
+    // Settings Modal Management
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsClose = document.getElementById('settings-close');
+    const saveSettingsBtn = document.getElementById('save-settings');
+    
+    // Default settings
+    const defaultSettings = {
+        soundEnabled: true,
+        vibrationEnabled: true,
+        tempUnit: 'F',
+        distanceUnit: 'mi',
+        autoRefreshEnabled: true,
+        refreshInterval: 60,
+        mapStyle: 'street',
+        showTraffic: true,
+        showBridges: true,
+        highRiskThreshold: 60,
+        mediumRiskThreshold: 30
+    };
+    
+    let currentSettings = { ...defaultSettings };
+    
+    // Open settings modal
+    settingsBtn.addEventListener('click', () => {
+        settingsModal.style.display = 'flex';
+        loadSettings();
     });
+    
+    // Close modal
+    settingsClose.addEventListener('click', () => {
+        settingsModal.style.display = 'none';
+    });
+    
+    // Close on background click
+    settingsModal.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.style.display = 'none';
+        }
+    });
+    
+    // Load settings from localStorage
+    function loadSettings() {
+        const saved = localStorage.getItem('quantumBlackIceSettings');
+        if (saved) {
+            currentSettings = { ...defaultSettings, ...JSON.parse(saved) };
+        }
+        
+        // Apply settings to UI
+        document.getElementById('sound-enabled').checked = currentSettings.soundEnabled;
+        document.getElementById('vibration-enabled').checked = currentSettings.vibrationEnabled;
+        document.getElementById('temp-unit').value = currentSettings.tempUnit;
+        document.getElementById('distance-unit').value = currentSettings.distanceUnit;
+        document.getElementById('auto-refresh-enabled').checked = currentSettings.autoRefreshEnabled;
+        document.getElementById('refresh-interval').value = currentSettings.refreshInterval;
+        document.getElementById('map-style').value = currentSettings.mapStyle;
+        document.getElementById('show-traffic').checked = currentSettings.showTraffic;
+        document.getElementById('show-bridges').checked = currentSettings.showBridges;
+        document.getElementById('high-risk-threshold').value = currentSettings.highRiskThreshold;
+        document.getElementById('medium-risk-threshold').value = currentSettings.mediumRiskThreshold;
+        
+        // Update slider values
+        document.getElementById('high-risk-value').textContent = currentSettings.highRiskThreshold + '%';
+        document.getElementById('medium-risk-value').textContent = currentSettings.mediumRiskThreshold + '%';
+    }
+    
+    // Update slider values in real-time
+    document.getElementById('high-risk-threshold').addEventListener('input', (e) => {
+        document.getElementById('high-risk-value').textContent = e.target.value + '%';
+    });
+    
+    document.getElementById('medium-risk-threshold').addEventListener('input', (e) => {
+        document.getElementById('medium-risk-value').textContent = e.target.value + '%';
+    });
+    
+    // Save settings
+    saveSettingsBtn.addEventListener('click', () => {
+        // Gather all settings
+        currentSettings = {
+            soundEnabled: document.getElementById('sound-enabled').checked,
+            vibrationEnabled: document.getElementById('vibration-enabled').checked,
+            tempUnit: document.getElementById('temp-unit').value,
+            distanceUnit: document.getElementById('distance-unit').value,
+            autoRefreshEnabled: document.getElementById('auto-refresh-enabled').checked,
+            refreshInterval: parseInt(document.getElementById('refresh-interval').value),
+            mapStyle: document.getElementById('map-style').value,
+            showTraffic: document.getElementById('show-traffic').checked,
+            showBridges: document.getElementById('show-bridges').checked,
+            highRiskThreshold: parseInt(document.getElementById('high-risk-threshold').value),
+            mediumRiskThreshold: parseInt(document.getElementById('medium-risk-threshold').value)
+        };
+        
+        // Save to localStorage
+        localStorage.setItem('quantumBlackIceSettings', JSON.stringify(currentSettings));
+        
+        // Apply settings
+        applySettings();
+        
+        // Show success message
+        showAlert('✅ Settings saved successfully!', 'success');
+        
+        // Close modal
+        settingsModal.style.display = 'none';
+    });
+    
+    // Apply settings to the app
+    function applySettings() {
+        // Update auto-refresh interval
+        if (window.refreshInterval) {
+            clearInterval(window.refreshInterval);
+        }
+        
+        if (currentSettings.autoRefreshEnabled) {
+            window.refreshInterval = setInterval(() => {
+                updateWeatherDisplay();
+                updateQuantumPredictions();
+                updateIOTReadings();
+                updateTrafficConditions();
+            }, currentSettings.refreshInterval * 1000);
+        }
+        
+        // Update displayed temperatures if currently showing
+        convertTemperaturesInUI();
+        
+        // Note: Map style, traffic, and bridge layers would be applied when map is initialized
+        // These settings are used by updateMap() and similar functions
+    }
+    
+    // Convert all temperatures in the UI based on unit preference
+    function convertTemperaturesInUI() {
+        const tempElements = document.querySelectorAll('[data-temp-f]');
+        tempElements.forEach(el => {
+            const tempF = parseFloat(el.getAttribute('data-temp-f'));
+            if (!isNaN(tempF)) {
+                if (currentSettings.tempUnit === 'C') {
+                    const tempC = (tempF - 32) * 5/9;
+                    el.textContent = tempC.toFixed(1) + '°C';
+                } else {
+                    el.textContent = tempF.toFixed(1) + '°F';
+                }
+            }
+        });
+    }
+    
+    // Helper function to get current temperature unit
+    function getCurrentTempUnit() {
+        return currentSettings.tempUnit;
+    }
+    
+    // Helper function to format temperature with current unit
+    function formatTemperature(tempF) {
+        if (currentSettings.tempUnit === 'C') {
+            const tempC = (tempF - 32) * 5/9;
+            return tempC.toFixed(1) + '°C';
+        }
+        return tempF.toFixed(1) + '°F';
+    }
+    
+    // Helper function to format distance with current unit
+    function formatDistance(miles) {
+        if (currentSettings.distanceUnit === 'km') {
+            const km = miles * 1.60934;
+            return km.toFixed(2) + ' km';
+        }
+        return miles.toFixed(2) + ' mi';
+    }
+    
+    // Load settings on page load
+    loadSettings();
+    applySettings();
     
     // Alert close
     document.getElementById('alert-close').addEventListener('click', () => {

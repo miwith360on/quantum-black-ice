@@ -7,6 +7,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Black Ice Alert">
     <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Black Ice Detection - Mobile</title>
     
     <!-- PWA Manifest -->
@@ -26,7 +29,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Mobile Styles -->
-    <link rel="stylesheet" href="mobile-styles.css">
+    <link rel="stylesheet" href="mobile-styles.css?v=2.0">
     
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -258,9 +261,160 @@
         <div class="bottom-safe-area"></div>
     </div>
 
+    <!-- Settings Modal -->
+    <div class="modal" id="settings-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Settings</h2>
+                <button class="modal-close" id="settings-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                
+                <!-- Notifications -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">🔔 Notifications</h3>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>Sound Alerts</span>
+                            <input type="checkbox" id="sound-enabled" checked>
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>Vibration</span>
+                            <input type="checkbox" id="vibration-enabled" checked>
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Units -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">🌡️ Units</h3>
+                    <div class="setting-item">
+                        <label class="setting-label-full">
+                            <span>Temperature</span>
+                            <select id="temp-unit" class="setting-select">
+                                <option value="F">Fahrenheit (°F)</option>
+                                <option value="C">Celsius (°C)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label-full">
+                            <span>Distance</span>
+                            <select id="distance-unit" class="setting-select">
+                                <option value="mi">Miles</option>
+                                <option value="km">Kilometers</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Auto-Refresh -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">🔄 Auto-Refresh</h3>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>Enable Auto-Refresh</span>
+                            <input type="checkbox" id="auto-refresh-enabled" checked>
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label-full">
+                            <span>Refresh Interval</span>
+                            <select id="refresh-interval" class="setting-select">
+                                <option value="30">30 seconds</option>
+                                <option value="60" selected>1 minute</option>
+                                <option value="120">2 minutes</option>
+                                <option value="300">5 minutes</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Map Settings -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">🗺️ Map</h3>
+                    <div class="setting-item">
+                        <label class="setting-label-full">
+                            <span>Map Style</span>
+                            <select id="map-style" class="setting-select">
+                                <option value="street">Street Map</option>
+                                <option value="satellite" selected>Satellite</option>
+                                <option value="dark">Dark Mode</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>Show Traffic Layer</span>
+                            <input type="checkbox" id="show-traffic" checked>
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>Show Bridge Hazards</span>
+                            <input type="checkbox" id="show-bridges" checked>
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Alert Thresholds -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">⚠️ Alert Thresholds</h3>
+                    <div class="setting-item">
+                        <label class="setting-label-full">
+                            <span>High Risk Alert (>60%)</span>
+                            <input type="range" id="high-risk-threshold" min="50" max="90" value="60" class="setting-slider">
+                            <span class="slider-value" id="high-risk-value">60%</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label-full">
+                            <span>Medium Risk Alert (>30%)</span>
+                            <input type="range" id="medium-risk-threshold" min="20" max="60" value="30" class="setting-slider">
+                            <span class="slider-value" id="medium-risk-value">30%</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- About -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">ℹ️ About</h3>
+                    <div class="setting-item about-item">
+                        <div class="about-text">
+                            <strong>Quantum Black Ice Detection</strong><br>
+                            Version 2.0 - Advanced Edition<br>
+                            <small>© 2025 - All rights reserved</small>
+                        </div>
+                    </div>
+                    <div class="setting-item about-item">
+                        <div class="about-text">
+                            <strong>Powered by:</strong><br>
+                            ⚛️ 20-Qubit Quantum Computing<br>
+                            🤖 Machine Learning (LSTM)<br>
+                            🛰️ NASA Satellite Imagery<br>
+                            📡 IoT Sensor Network<br>
+                            🌍 Real-time Weather APIs
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" id="save-settings">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script src="mobile.js"></script>
+    <script src="mobile.js?v=2.0"></script>
 </body>
 </html>
