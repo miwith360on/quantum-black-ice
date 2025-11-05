@@ -29,6 +29,7 @@ from openmeteo_service import OpenMeteoService
 from gps_context_system import GPSContextSystem
 from ml_road_temp_model import MLRoadSurfaceTempModel
 from iot_sensor_network import IoTSensorNetwork
+from accident_predictor import AccidentPredictor
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -73,6 +74,7 @@ quantum_predictor = QuantumBlackIcePredictor()
 quantum_predictor_v2 = QuantumBlackIcePredictorV2()  # NEW: 20-qubit system!
 ml_road_temp = MLRoadSurfaceTempModel()  # NEW: ML Road Surface Temp Model!
 iot_network = IoTSensorNetwork()  # NEW: IoT Sensor Network!
+accident_predictor = AccidentPredictor()  # NEW: Accident Prediction!
 radar_service = RadarService()
 db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
@@ -1272,6 +1274,186 @@ def get_iot_network_status():
             'success': True,
             'network_status': status
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== PREDICTIVE ANALYTICS DASHBOARD ====================
+
+@app.route('/api/analytics/predict-accident', methods=['POST'])
+def predict_accident():
+    """
+    Predict accident probability for a location
+    Combines: weather + quantum risk + traffic + IoT + historical patterns
+    """
+    try:
+        data = request.get_json()
+        
+        lat = data.get('lat')
+        lon = data.get('lon')
+        time_window = data.get('time_window_hours', 3)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        # Gather all data sources
+        weather_data = openmeteo_service.get_current_weather(lat, lon)
+        
+        location_context = data.get('location_context', {})
+        quantum_risk = quantum_predictor_v2.predict(weather_data, location_context)
+        
+        try:
+            traffic_data = traffic_monitor.get_traffic_conditions(lat, lon, radius=1000)
+        except:
+            traffic_data = None
+        
+        try:
+            iot_data = iot_network.get_sensor_data(lat, lon, radius_km=10)
+        except:
+            iot_data = None
+        
+        # Predict accident
+        location = {
+            'lat': lat,
+            'lon': lon,
+            'name': data.get('location_name', 'Current Location'),
+            **location_context
+        }
+        
+        prediction = accident_predictor.predict_accident_risk(
+            location=location,
+            weather_data=weather_data,
+            quantum_risk=quantum_risk,
+            traffic_data=traffic_data,
+            iot_data=iot_data,
+            time_window_hours=time_window
+        )
+        
+        return jsonify({
+            'success': True,
+            'accident_prediction': prediction
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analytics/route-analysis', methods=['POST'])
+def analyze_route_accidents():
+    """Analyze entire route for accident hotspots"""
+    try:
+        data = request.get_json()
+        
+        route_points = data.get('route_points', [])
+        
+        if not route_points or len(route_points) < 2:
+            return jsonify({'error': 'Need at least 2 route points'}), 400
+        
+        # Get weather for route start
+        weather_data = openmeteo_service.get_current_weather(
+            route_points[0]['lat'],
+            route_points[0]['lon']
+        )
+        
+        # Get quantum risks for each point
+        quantum_risks = []
+        for point in route_points:
+            try:
+                risk = quantum_predictor_v2.predict(weather_data, {})
+                quantum_risks.append(risk)
+            except:
+                quantum_risks.append({})
+        
+        # Analyze route
+        analysis = accident_predictor.analyze_route_accidents(
+            route_points=route_points,
+            weather_data=weather_data,
+            quantum_risks=quantum_risks
+        )
+        
+        return jsonify({
+            'success': True,
+            'route_analysis': analysis
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analytics/heatmap', methods=['GET'])
+def get_accident_heatmap():
+    """Get regional accident risk heatmap"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        radius = request.args.get('radius', type=float, default=20)
+        grid_size = request.args.get('grid_size', type=int, default=20)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        heatmap = accident_predictor.get_regional_heatmap(
+            center_lat=lat,
+            center_lon=lon,
+            radius_km=radius,
+            grid_size=grid_size
+        )
+        
+        return jsonify({
+            'success': True,
+            'heatmap': heatmap
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analytics/dashboard', methods=['POST'])
+def get_analytics_dashboard():
+    """
+    Get complete analytics dashboard data
+    Everything needed for the predictive analytics UI
+    """
+    try:
+        data = request.get_json()
+        
+        lat = data.get('lat')
+        lon = data.get('lon')
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        # Gather all data
+        weather_data = openmeteo_service.get_current_weather(lat, lon)
+        
+        location_context = data.get('location_context', {})
+        quantum_risk = quantum_predictor_v2.predict(weather_data, location_context)
+        
+        try:
+            traffic_data = traffic_monitor.get_traffic_conditions(lat, lon, radius=1000)
+        except:
+            traffic_data = None
+        
+        try:
+            iot_data = iot_network.get_sensor_data(lat, lon, radius_km=10)
+        except:
+            iot_data = None
+        
+        # Get dashboard data
+        dashboard = accident_predictor.get_dashboard_data(
+            lat=lat,
+            lon=lon,
+            weather_data=weather_data,
+            quantum_risk=quantum_risk,
+            traffic_data=traffic_data,
+            iot_data=iot_data
+        )
+        
+        return jsonify({
+            'success': True,
+            'dashboard': dashboard
+        })
+    
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
