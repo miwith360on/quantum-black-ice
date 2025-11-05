@@ -1082,32 +1082,7 @@ def ml_road_temp_enhanced():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/gps/nearest-hazard', methods=['GET'])
-def get_nearest_hazard():
-    """Get the nearest bridge/overpass with quantum risk"""
-    lat = request.args.get('lat', type=float)
-    lon = request.args.get('lon', type=float)
-    
-    if not lat or not lon:
-        return jsonify({'error': 'lat and lon required'}), 400
-    
-    try:
-        # Make sure GPS context is updated
-        weather_data = openmeteo_service.get_current_weather(lat, lon)
-        gps_context.update_location(lat, lon, weather_data)
-        
-        hazard = gps_context.get_nearest_hazard(lat, lon)
-        
-        if hazard:
-            return jsonify(hazard)
-        else:
-            return jsonify({'message': 'No hazards nearby', 'hazard': None})
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/gps/route-preview', methods=['POST'])
+@app.route('/api/gps/route-preview-enhanced', methods=['POST'])
 def preview_route():
     """Preview quantum risk along a route before driving"""
     try:
