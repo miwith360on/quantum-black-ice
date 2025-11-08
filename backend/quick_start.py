@@ -2,6 +2,7 @@
 Quick Start Server - Quantum Only (No TensorFlow)
 Fast loading for desktop testing
 WITH ADVANCED FEATURES: QFPM, IoT Mesh, BIFI
+Deployed on Railway - Auto-updates from GitHub
 """
 
 from flask import Flask, jsonify, request, send_from_directory
