@@ -293,6 +293,9 @@ async function fetchWeatherData() {
         
         // Get ML prediction
         getPrediction(data);
+        
+        // Get advanced predictions (BIFI, QFPM, IoT Mesh)
+        getAdvancedPredictions(data);
     } catch (error) {
         console.error('❌ Weather fetch failed:', error);
         showAlert(`Unable to fetch weather data: ${error.message}`, 'error');
@@ -560,6 +563,317 @@ function showAlert(message, severity = 'info') {
     }, 5000);
 }
 
+// ============ ADVANCED PREDICTIONS ============
+
+// Get all advanced predictions in one call
+async function getAdvancedPredictions(weatherData) {
+    try {
+        const response = await fetch(`${API_BASE}/api/advanced/predict`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                weather_data: weatherData,
+                lat: currentLocation.lat,
+                lon: currentLocation.lng
+            })
+        });
+        
+        if (!response.ok) throw new Error('Advanced predictions failed');
+        
+        const data = await response.json();
+        console.log('✅ Advanced predictions received:', data);
+        
+        if (data.success) {
+            updateBIFIDisplay(data.predictions.bifi);
+            updateQFPMDisplay(data.predictions.qfpm);
+            if (data.predictions.mesh) {
+                updateMeshDisplay(data.predictions.mesh);
+            }
+            
+            // Initialize IoT sensors if not already done
+            if (!window.sensorsInitialized && currentLocation.lat) {
+                initializeMeshNetwork();
+            }
+        }
+    } catch (error) {
+        console.error('❌ Advanced predictions error:', error);
+    }
+}
+
+// Update BIFI display
+function updateBIFIDisplay(bifiData) {
+    if (!bifiData) return;
+    
+    const score = bifiData.bifi_score;
+    const level = bifiData.risk_level;
+    const interpretation = bifiData.interpretation;
+    const components = bifiData.components;
+    
+    // Update score circle
+    document.getElementById('bifi-score').textContent = Math.round(score);
+    document.getElementById('bifi-level').textContent = level;
+    document.getElementById('bifi-level').style.color = bifiData.risk_color;
+    
+    // Add risk level class
+    const bifiCard = document.querySelector('.bifi-card');
+    bifiCard.className = 'card bifi-card bifi-' + level.toLowerCase();
+    
+    // Update interpretation
+    document.getElementById('bifi-interpretation').textContent = interpretation;
+    
+    // Update component bars
+    updateComponentBar('temp', components.temperature);
+    updateComponentBar('humidity', components.humidity);
+    updateComponentBar('dewpoint', components.dew_point);
+    updateComponentBar('wind', components.wind);
+    
+    console.log(`📊 BIFI: ${score}/100 (${level})`);
+}
+
+function updateComponentBar(name, value) {
+    const bar = document.getElementById(`bifi-${name}-bar`);
+    const val = document.getElementById(`bifi-${name}-val`);
+    
+    if (bar && val) {
+        bar.style.width = value + '%';
+        val.textContent = Math.round(value);
+        
+        // Color based on value
+        if (value > 70) {
+            bar.style.background = 'linear-gradient(90deg, #FF4500, #8B0000)';
+        } else if (value > 40) {
+            bar.style.background = 'linear-gradient(90deg, #FFD700, #FF4500)';
+        } else {
+            bar.style.background = 'linear-gradient(90deg, #32CD32, #9ACD32)';
+        }
+    }
+}
+
+// Update QFPM forecast display
+function updateQFPMDisplay(qfpmData) {
+    if (!qfpmData || !qfpmData.summary) return;
+    
+    const summary = qfpmData.summary;
+    const probs = summary.freeze_probability;
+    
+    // Update 30-min forecast
+    updateForecastItem('30', probs['30_min']);
+    updateForecastItem('60', probs['60_min']);
+    updateForecastItem('90', probs['90_min']);
+    
+    // Update alert message
+    document.getElementById('qfpm-alert').textContent = summary.alert_message;
+    document.getElementById('qfpm-alert').style.borderColor = summary.color;
+    
+    // Highlight peak risk time
+    const peakTime = summary.peak_risk_time;
+    document.querySelectorAll('.forecast-item').forEach(item => {
+        item.style.borderLeftColor = 'transparent';
+    });
+    document.getElementById(`forecast-${peakTime}`).style.borderLeftColor = summary.color;
+    
+    console.log(`⚛️ QFPM: Peak risk at ${peakTime} (${summary.risk_level})`);
+}
+
+function updateForecastItem(timeKey, probability) {
+    const probEl = document.getElementById(`qfpm-${timeKey}`);
+    const barEl = document.getElementById(`qfpm-${timeKey}-bar`);
+    
+    if (probEl && barEl) {
+        probEl.textContent = probability + '%';
+        barEl.style.width = probability + '%';
+        
+        // Color based on probability
+        if (probability > 70) {
+            barEl.style.background = 'linear-gradient(90deg, #8B0000, #FF0000)';
+        } else if (probability > 40) {
+            barEl.style.background = 'linear-gradient(90deg, #FFD700, #FF4500)';
+        } else {
+            barEl.style.background = 'linear-gradient(90deg, #667eea, #764ba2)';
+        }
+    }
+}
+
+// Update IoT mesh network display
+function updateMeshDisplay(meshData) {
+    if (!meshData) return;
+    
+    document.getElementById('mesh-sensor-count').textContent = meshData.nearby_sensors || 0;
+    document.getElementById('mesh-confidence').textContent = meshData.confidence || 'LOW';
+    document.getElementById('mesh-freeze-alerts').textContent = meshData.freeze_alerts?.length || 0;
+    document.getElementById('mesh-message').textContent = meshData.message || '🌐 No sensors in area';
+    
+    // Color-code confidence
+    const confidenceEl = document.getElementById('mesh-confidence');
+    if (meshData.confidence === 'HIGH') {
+        confidenceEl.style.color = '#32CD32';
+    } else if (meshData.confidence === 'MEDIUM') {
+        confidenceEl.style.color = '#FFD700';
+    } else {
+        confidenceEl.style.color = '#FF4500';
+    }
+    
+    console.log(`🌐 Mesh: ${meshData.nearby_sensors} sensors, ${meshData.confidence} confidence`);
+}
+
+// Initialize IoT mesh network
+async function initializeMeshNetwork() {
+    if (!currentLocation.lat || !currentLocation.lng) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/mesh/initialize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lat: currentLocation.lat,
+                lon: currentLocation.lng,
+                radius_miles: 10,
+                sensor_count: 15
+            })
+        });
+        
+        if (!response.ok) throw new Error('Mesh initialization failed');
+        
+        const data = await response.json();
+        console.log('✅ IoT Mesh initialized:', data.sensors_created, 'sensors');
+        
+        window.sensorsInitialized = true;
+        
+        // Simulate sensor readings
+        simulateSensorReadings();
+    } catch (error) {
+        console.error('❌ Mesh initialization error:', error);
+    }
+}
+
+// Simulate sensor readings based on current weather
+async function simulateSensorReadings() {
+    try {
+        const weatherResponse = await fetch(
+            `${API_BASE}/api/weather/current?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
+        );
+        const weatherData = await weatherResponse.json();
+        
+        const response = await fetch(`${API_BASE}/api/mesh/simulate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                weather_data: weatherData
+            })
+        });
+        
+        if (!response.ok) throw new Error('Sensor simulation failed');
+        
+        const data = await response.json();
+        console.log('✅ Simulated', data.sensors_updated, 'sensor readings');
+        
+        // Fetch updated sensor data
+        fetchSensorData();
+    } catch (error) {
+        console.error('❌ Sensor simulation error:', error);
+    }
+}
+
+// Fetch and display sensor data on map
+let sensorMarkers = [];
+let showingSensors = false;
+
+async function fetchSensorData() {
+    if (!currentLocation.lat || !currentLocation.lng) return;
+    
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/mesh/sensors?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius_miles=10`
+        );
+        
+        if (!response.ok) throw new Error('Sensor fetch failed');
+        
+        const data = await response.json();
+        
+        if (data.success && data.sensors) {
+            window.sensorData = data.sensors;
+            updateMeshDisplay(data.summary);
+            
+            if (showingSensors) {
+                displaySensorsOnMap(data.sensors);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Sensor fetch error:', error);
+    }
+}
+
+// Display sensor markers on map
+function displaySensorsOnMap(sensors) {
+    // Clear existing markers
+    sensorMarkers.forEach(marker => map.removeLayer(marker));
+    sensorMarkers = [];
+    
+    sensors.forEach(sensor => {
+        const isFreezing = sensor.readings.surface_temp <= 32;
+        
+        const marker = L.marker([sensor.location.lat, sensor.location.lon], {
+            icon: L.divIcon({
+                className: isFreezing ? 'sensor-marker freeze-alert' : 'sensor-marker',
+                html: '🌡️',
+                iconSize: [32, 32]
+            })
+        });
+        
+        // Create popup with sensor data
+        const popup = `
+            <div class="sensor-popup">
+                <div class="popup-title">${sensor.type.replace('_', ' ').toUpperCase()}</div>
+                <div class="popup-data">
+                    <div class="data-item">
+                        <span class="data-label">Air Temp</span>
+                        <span class="data-value">${sensor.readings.temperature?.toFixed(1)}°F</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">Surface</span>
+                        <span class="data-value">${sensor.readings.surface_temp?.toFixed(1)}°F</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">Friction</span>
+                        <span class="data-value">${sensor.readings.friction_index?.toFixed(2)}</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">Humidity</span>
+                        <span class="data-value">${sensor.readings.humidity?.toFixed(0)}%</span>
+                    </div>
+                </div>
+                <div style="margin-top: 8px; font-size: 11px; color: #666;">
+                    ${sensor.distance_miles.toFixed(1)} mi away
+                </div>
+            </div>
+        `;
+        
+        marker.bindPopup(popup);
+        marker.addTo(map);
+        sensorMarkers.push(marker);
+    });
+    
+    console.log('📍 Displayed', sensors.length, 'sensor markers');
+}
+
+// Toggle sensor display
+function toggleSensorsOnMap() {
+    showingSensors = !showingSensors;
+    
+    if (showingSensors) {
+        if (window.sensorData) {
+            displaySensorsOnMap(window.sensorData);
+        } else {
+            fetchSensorData();
+        }
+        document.getElementById('toggle-sensors-btn').querySelector('.btn-text').textContent = 'Hide Sensors';
+    } else {
+        sensorMarkers.forEach(marker => map.removeLayer(marker));
+        sensorMarkers = [];
+        document.getElementById('toggle-sensors-btn').querySelector('.btn-text').textContent = 'Show Sensors on Map';
+    }
+}
+
 // Event listeners
 function setupEventListeners() {
     // Refresh button
@@ -567,6 +881,9 @@ function setupEventListeners() {
         fetchWeatherData();
         addActivityItem('Manually refreshed');
     });
+    
+    // Toggle sensors button
+    document.getElementById('toggle-sensors-btn').addEventListener('click', toggleSensorsOnMap);
     
     // Settings Modal Management
     const settingsModal = document.getElementById('settings-modal');

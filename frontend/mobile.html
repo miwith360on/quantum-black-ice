@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Mobile Styles -->
-    <link rel="stylesheet" href="mobile-styles.css?v=2.0">
+    <link rel="stylesheet" href="mobile-styles.css?v=3.0">
     
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -123,6 +123,116 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- BIFI Score Card -->
+            <div class="card bifi-card">
+                <h2 class="card-title">📊 Black Ice Formation Index (BIFI)</h2>
+                
+                <div class="bifi-display">
+                    <div class="bifi-score-circle" id="bifi-circle">
+                        <div class="bifi-score" id="bifi-score">--</div>
+                        <div class="bifi-max">/100</div>
+                    </div>
+                    <div class="bifi-level" id="bifi-level">Calculating...</div>
+                </div>
+                
+                <div class="bifi-interpretation" id="bifi-interpretation">
+                    Analyzing atmospheric conditions...
+                </div>
+                
+                <div class="bifi-components" id="bifi-components">
+                    <div class="component-bar">
+                        <div class="component-label">Temperature</div>
+                        <div class="component-progress">
+                            <div class="component-fill" id="bifi-temp-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="component-value" id="bifi-temp-val">--</div>
+                    </div>
+                    <div class="component-bar">
+                        <div class="component-label">Humidity</div>
+                        <div class="component-progress">
+                            <div class="component-fill" id="bifi-humidity-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="component-value" id="bifi-humidity-val">--</div>
+                    </div>
+                    <div class="component-bar">
+                        <div class="component-label">Dew Point</div>
+                        <div class="component-progress">
+                            <div class="component-fill" id="bifi-dewpoint-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="component-value" id="bifi-dewpoint-val">--</div>
+                    </div>
+                    <div class="component-bar">
+                        <div class="component-label">Wind Effect</div>
+                        <div class="component-progress">
+                            <div class="component-fill" id="bifi-wind-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="component-value" id="bifi-wind-val">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QFPM Forecast Card -->
+            <div class="card qfpm-card">
+                <h2 class="card-title">⚛️ Quantum Freeze Forecast</h2>
+                
+                <div class="qfpm-timeline">
+                    <div class="forecast-item" id="forecast-30min">
+                        <div class="forecast-time">30 min</div>
+                        <div class="forecast-probability" id="qfpm-30">--%</div>
+                        <div class="forecast-bar">
+                            <div class="forecast-fill" id="qfpm-30-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="forecast-item" id="forecast-60min">
+                        <div class="forecast-time">60 min</div>
+                        <div class="forecast-probability" id="qfpm-60">--%</div>
+                        <div class="forecast-bar">
+                            <div class="forecast-fill" id="qfpm-60-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="forecast-item" id="forecast-90min">
+                        <div class="forecast-time">90 min</div>
+                        <div class="forecast-probability" id="qfpm-90">--%</div>
+                        <div class="forecast-bar">
+                            <div class="forecast-fill" id="qfpm-90-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="qfpm-alert" id="qfpm-alert">
+                    ⚛️ Quantum analysis in progress...
+                </div>
+            </div>
+
+            <!-- IoT Mesh Network Card -->
+            <div class="card mesh-card">
+                <h2 class="card-title">🌐 IoT Sensor Network</h2>
+                
+                <div class="mesh-summary">
+                    <div class="mesh-stat">
+                        <div class="mesh-stat-value" id="mesh-sensor-count">--</div>
+                        <div class="mesh-stat-label">Active Sensors</div>
+                    </div>
+                    <div class="mesh-stat">
+                        <div class="mesh-stat-value" id="mesh-confidence">--</div>
+                        <div class="mesh-stat-label">Confidence</div>
+                    </div>
+                    <div class="mesh-stat">
+                        <div class="mesh-stat-value" id="mesh-freeze-alerts">--</div>
+                        <div class="mesh-stat-label">Freeze Alerts</div>
+                    </div>
+                </div>
+                
+                <div class="mesh-message" id="mesh-message">
+                    🌐 Initializing sensor network...
+                </div>
+                
+                <button class="btn-secondary" id="toggle-sensors-btn">
+                    <span class="btn-icon">📍</span>
+                    <span class="btn-text">Show Sensors on Map</span>
+                </button>
             </div>
 
             <!-- AI Prediction Card -->
@@ -415,6 +525,6 @@
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script src="mobile.js?v=2.0"></script>
+    <script src="mobile.js?v=3.0"></script>
 </body>
 </html>
