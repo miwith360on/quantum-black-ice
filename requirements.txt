@@ -6,6 +6,7 @@ python-dotenv==1.0.0
 # AI/ML Dependencies
 tensorflow==2.20.0
 numpy==2.3.4
+scipy>=1.11.0
 
 # Quantum Computing Dependencies
 qiskit==2.2.3
