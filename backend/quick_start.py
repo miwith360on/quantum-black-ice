@@ -69,14 +69,24 @@ print("✅ Recent Precipitation Tracker ready (Wet pavement detection)")
 print("✅ NOAA weather service ready")
 print("✅ Advanced weather calculator ready")
 
-# Serve frontend
+# Serve frontend with cache-busting
 @app.route('/')
 def index():
-    return send_from_directory(static_folder, 'index.html')
+    response = send_from_directory(static_folder, 'index.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/<path:path>')
 def serve_static(path):
-    return send_from_directory(static_folder, path)
+    response = send_from_directory(static_folder, path)
+    # Disable caching for JavaScript and CSS files to ensure updates
+    if path.endswith(('.js', '.css', '.html')):
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 # Health check
 @app.route('/api/health', methods=['GET'])
