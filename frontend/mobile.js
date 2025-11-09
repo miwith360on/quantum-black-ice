@@ -196,8 +196,14 @@ async function reverseGeocode(lat, lng) {
 
 // Initialize WebSocket connection
 function initializeWebSocket() {
+    // Prefer polling on localhost/dev to avoid websocket upgrade errors with
+    // Werkzeug dev server. Use real websockets in production.
+    const wsTransports = (API_BASE.includes('localhost') || API_BASE.includes('127.0.0.1'))
+        ? ['polling']
+        : ['websocket', 'polling'];
+    
     socket = io(API_BASE, {
-        transports: ['websocket', 'polling'],
+        transports: wsTransports,
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: 5
