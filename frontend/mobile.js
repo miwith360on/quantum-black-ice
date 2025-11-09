@@ -621,7 +621,9 @@ async function getBIFIPrediction(weatherData) {
         
         if (response.ok) {
             const data = await response.json();
-            if (data.success) {
+            if (data.success && data.bifi) {
+                // Add interpretation to bifi object
+                data.bifi.interpretation = data.interpretation;
                 updateBIFIDisplay(data.bifi);
             }
         }
@@ -641,8 +643,8 @@ async function getQFPMPrediction(weatherData) {
         
         if (response.ok) {
             const data = await response.json();
-            if (data.success) {
-                updateQFPMDisplay(data.qfpm);
+            if (data.success && data.summary) {
+                updateQFPMDisplay({ summary: data.summary });
             }
         }
     } catch (error) {
