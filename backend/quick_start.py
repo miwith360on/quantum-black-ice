@@ -17,6 +17,7 @@ from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
 from weather_service import WeatherService
 from road_risk_analyzer import RoadRiskAnalyzer
+from traffic_monitor import TrafficMonitor
 
 # NEW: Advanced prediction systems
 from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
@@ -46,6 +47,7 @@ weather_calculator = AdvancedWeatherCalculator()
 noaa_service = NOAAWeatherService()
 weather_service = WeatherService(api_key=os.getenv('OPENWEATHER_API_KEY'))
 road_analyzer = RoadRiskAnalyzer()
+traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
 
 # Initialize NEW advanced systems
 qfpm = QuantumFreezeProbabilityMatrix(num_qubits=20)  # 20-qubit QFPM
@@ -64,6 +66,7 @@ print("✅ QFPM initialized: 20 qubits")
 print("✅ IoT Mesh Network ready")
 print("✅ BIFI Calculator ready")
 print("✅ Road Risk Analyzer ready (OpenStreetMap)")
+print(f"🚦 Traffic Monitor: {'Active' if os.getenv('GOOGLE_MAPS_API_KEY') else 'Inactive (no API key)'}")
 print("✅ RWIS Service ready (Real road temps)")
 print("✅ Precipitation Type Service ready (Freezing rain detection)")
 print("✅ Bridge Freeze Calculator ready")
@@ -104,7 +107,9 @@ def health_check():
             '/api/advanced/predict',
             '/api/bifi/calculate', 
             '/api/qfpm/predict',
-            '/api/mesh/initialize'
+            '/api/mesh/initialize',
+            '/api/road/analyze',
+            '/api/traffic/tile-url'
         ]
     })
 
@@ -705,6 +710,39 @@ def analyze_road_risks():
     try:
         road_features = road_analyzer.get_high_risk_roads(lat, lon, radius)
         return jsonify(road_features)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Traffic - current conditions
+@app.route('/api/traffic/current', methods=['GET'])
+def get_traffic_conditions():
+    """Get real-time traffic conditions (requires GOOGLE_MAPS_API_KEY)"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius = request.args.get('radius', type=int, default=5000)
+
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+
+    try:
+        traffic = traffic_monitor.get_traffic_conditions(lat, lon, radius)
+        return jsonify(traffic)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/traffic/tile-url', methods=['GET'])
+def get_traffic_tile_url():
+    """Return a pseudo tile URL (placeholder) or message if key missing"""
+    zoom = request.args.get('zoom', type=int, default=13)
+    try:
+        tile_url = traffic_monitor.get_traffic_tile_url(zoom)
+        if tile_url:
+            return jsonify({'tile_url': tile_url, 'available': True})
+        else:
+            return jsonify({
+                'available': False,
+                'message': 'Traffic layer requires GOOGLE_MAPS_API_KEY environment variable'
+            })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
