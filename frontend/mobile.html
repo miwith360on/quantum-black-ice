@@ -235,6 +235,168 @@
                 </button>
             </div>
 
+            <!-- Overnight Freeze Prediction Card -->
+            <div class="card overnight-card">
+                <h2 class="card-title">🌙 Overnight Freeze Prediction</h2>
+                
+                <div class="overnight-summary">
+                    <div class="freeze-time-display">
+                        <div class="freeze-time-label">Roads will freeze at:</div>
+                        <div class="freeze-time-value" id="freeze-time">--:--</div>
+                        <div class="freeze-countdown" id="freeze-countdown">Calculating...</div>
+                    </div>
+                    
+                    <div class="overnight-stats">
+                        <div class="overnight-stat">
+                            <div class="stat-label">Minimum Temp</div>
+                            <div class="stat-value" id="overnight-min-temp">--°F</div>
+                        </div>
+                        <div class="overnight-stat">
+                            <div class="stat-label">Cooling Rate</div>
+                            <div class="stat-value" id="cooling-rate">--°F/hr</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="risk-badge" id="overnight-risk-badge">
+                    <span id="overnight-risk-level">Analyzing...</span>
+                </div>
+                
+                <div class="overnight-message" id="overnight-message">
+                    🌙 Analyzing overnight cooling patterns...
+                </div>
+            </div>
+
+            <!-- Wet Pavement Warning Card -->
+            <div class="card wet-pavement-card">
+                <h2 class="card-title">💧 Wet Pavement Detection</h2>
+                
+                <div class="wet-pavement-status">
+                    <div class="pavement-indicator" id="pavement-wet-indicator">
+                        <div class="indicator-circle"></div>
+                        <div class="indicator-text" id="pavement-status-text">Checking...</div>
+                    </div>
+                </div>
+                
+                <div class="risk-multiplier-display">
+                    <div class="multiplier-label">Black Ice Risk Multiplier</div>
+                    <div class="multiplier-value" id="risk-multiplier">1.0x</div>
+                </div>
+                
+                <div class="precipitation-info">
+                    <div class="precip-stat">
+                        <span class="precip-label">Last Precipitation:</span>
+                        <span class="precip-value" id="hours-since-precip">--</span>
+                    </div>
+                </div>
+                
+                <div class="wet-pavement-warning" id="wet-pavement-warning">
+                    💧 Scanning recent weather data...
+                </div>
+            </div>
+
+            <!-- Real Road Temperature Card -->
+            <div class="card road-temp-card">
+                <h2 class="card-title">🌡️ Real Road Surface Temp</h2>
+                
+                <div class="road-temp-display">
+                    <div class="temp-main">
+                        <div class="temp-value" id="road-temp-value">--°F</div>
+                        <div class="temp-source">from DOT sensor</div>
+                    </div>
+                    
+                    <div class="sensor-info">
+                        <div class="sensor-stat">
+                            <span class="sensor-label">Distance:</span>
+                            <span class="sensor-value" id="sensor-distance">--</span>
+                        </div>
+                        <div class="sensor-stat">
+                            <span class="sensor-label">Confidence:</span>
+                            <span class="sensor-value confidence-badge" id="sensor-confidence">--</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="temp-comparison">
+                    <div class="comparison-item">
+                        <span class="comparison-label">Air Temp:</span>
+                        <span class="comparison-value" id="air-temp-compare">--°F</span>
+                    </div>
+                    <div class="comparison-item">
+                        <span class="comparison-label">Difference:</span>
+                        <span class="comparison-value" id="temp-difference">--°F</span>
+                    </div>
+                </div>
+                
+                <div class="road-temp-message" id="road-temp-message">
+                    🌡️ Searching for nearby DOT sensors...
+                </div>
+            </div>
+
+            <!-- Precipitation Type Alert Card -->
+            <div class="card precip-type-card">
+                <h2 class="card-title">🌨️ Precipitation Analysis</h2>
+                
+                <div class="precip-current">
+                    <div class="precip-type-display">
+                        <div class="precip-icon" id="precip-icon">❓</div>
+                        <div class="precip-type-text" id="precip-type">Checking...</div>
+                    </div>
+                    
+                    <div class="precip-risk-badge" id="precip-risk-badge">
+                        <span id="precip-risk-level">--</span>
+                    </div>
+                </div>
+                
+                <div class="precip-forecast-hours">
+                    <div class="forecast-label">Next 3 Hours:</div>
+                    <div class="hour-items" id="precip-hourly">
+                        <div class="hour-item">
+                            <div class="hour-time">--</div>
+                            <div class="hour-type">--</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="precip-warning" id="precip-warning">
+                    🌨️ Analyzing precipitation patterns...
+                </div>
+            </div>
+
+            <!-- Bridge Freeze Warning Card -->
+            <div class="card bridge-card">
+                <h2 class="card-title">🌉 Bridge Freeze Alert</h2>
+                
+                <div class="bridge-freeze-display">
+                    <div class="bridge-temp-main">
+                        <div class="bridge-label">Bridges freeze at:</div>
+                        <div class="bridge-freeze-temp" id="bridge-freeze-temp">--°F</div>
+                    </div>
+                    
+                    <div class="bridge-comparison">
+                        <div class="comparison-stat">
+                            <span class="stat-label">Road freezes at:</span>
+                            <span class="stat-value">32°F</span>
+                        </div>
+                        <div class="comparison-stat danger-zone">
+                            <span class="stat-label">Danger zone:</span>
+                            <span class="stat-value" id="bridge-danger-zone">--°F warmer</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bridge-factors">
+                    <div class="factor-label">Risk Factors:</div>
+                    <div class="factors-list" id="bridge-factors">
+                        <div class="factor-item">Calculating...</div>
+                    </div>
+                </div>
+                
+                <div class="bridge-warning" id="bridge-warning">
+                    🌉 Analyzing bridge freeze conditions...
+                </div>
+            </div>
+
             <!-- AI Prediction Card -->
             <div class="card ai-card">
                 <h2 class="card-title">

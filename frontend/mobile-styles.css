@@ -1497,3 +1497,471 @@ body {
 .bifi-high .bifi-score-circle { border-color: #FF4500; box-shadow: 0 0 20px rgba(255, 69, 0, 0.3); }
 .bifi-extreme .bifi-score-circle { border-color: #8B0000; box-shadow: 0 0 20px rgba(139, 0, 0, 0.3); }
 
+/* ==================== NEW ACCURACY UPGRADE CARDS ==================== */
+
+/* Overnight Freeze Prediction Card */
+.overnight-card {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.overnight-summary {
+    margin: 20px 0;
+}
+
+.freeze-time-display {
+    text-align: center;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    margin-bottom: 16px;
+}
+
+.freeze-time-label {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.freeze-time-value {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 8px 0;
+}
+
+.freeze-countdown {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+.overnight-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.overnight-stat {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.overnight-stat .stat-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.overnight-stat .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.risk-badge {
+    background: #10b981;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: 600;
+    margin: 16px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.overnight-message {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text-primary);
+    text-align: center;
+    margin-top: 16px;
+}
+
+/* Wet Pavement Warning Card */
+.wet-pavement-card {
+    background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+}
+
+.wet-pavement-status {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.pavement-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+}
+
+.indicator-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 20px currentColor;
+}
+
+.indicator-text {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.risk-multiplier-display {
+    text-align: center;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    margin: 16px 0;
+}
+
+.multiplier-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.multiplier-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.precipitation-info {
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.precip-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.precip-label {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.precip-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.wet-pavement-warning {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: center;
+}
+
+/* Real Road Temperature Card */
+.road-temp-card {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+}
+
+.road-temp-display {
+    margin: 20px 0;
+}
+
+.temp-main {
+    text-align: center;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    margin-bottom: 16px;
+}
+
+.temp-value {
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.temp-source {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sensor-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.sensor-stat {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 14px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sensor-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.sensor-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.confidence-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: white;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.temp-comparison {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.comparison-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.comparison-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.comparison-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.road-temp-message {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: center;
+}
+
+/* Precipitation Type Alert Card */
+.precip-type-card {
+    background: linear-gradient(135deg, #000428 0%, #004e92 100%);
+}
+
+.precip-current {
+    margin: 20px 0;
+}
+
+.precip-type-display {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    margin-bottom: 16px;
+}
+
+.precip-icon {
+    font-size: 48px;
+}
+
+.precip-type-text {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.precip-risk-badge {
+    background: #10b981;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.precip-forecast-hours {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.forecast-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+}
+
+.hour-items {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.hour-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 12px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.hour-time {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 6px;
+}
+
+.hour-type {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.precip-warning {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: center;
+}
+
+/* Bridge Freeze Warning Card */
+.bridge-card {
+    background: linear-gradient(135deg, #232526 0%, #414345 100%);
+}
+
+.bridge-freeze-display {
+    margin: 20px 0;
+}
+
+.bridge-temp-main {
+    text-align: center;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    margin-bottom: 16px;
+}
+
+.bridge-label {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.bridge-freeze-temp {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 8px 0;
+}
+
+.bridge-comparison {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.comparison-stat {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.comparison-stat.danger-zone {
+    background: rgba(239, 68, 68, 0.2);
+    border: 2px solid rgba(239, 68, 68, 0.4);
+}
+
+.comparison-stat .stat-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.comparison-stat .stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.bridge-factors {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.factor-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
+.factors-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.factor-item {
+    font-size: 13px;
+    color: var(--text-primary);
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+.bridge-warning {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: center;
+}
+
+/* ==================== END ACCURACY UPGRADE CARDS ==================== */

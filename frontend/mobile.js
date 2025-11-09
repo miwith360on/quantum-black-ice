@@ -302,6 +302,9 @@ async function fetchWeatherData() {
         
         // Get advanced predictions (BIFI, QFPM, IoT Mesh)
         getAdvancedPredictions(data);
+        
+        // Get new accuracy upgrade predictions
+        getAccuracyUpgrades(data);
     } catch (error) {
         console.error('❌ Weather fetch failed:', error);
         showAlert(`Unable to fetch weather data: ${error.message}`, 'error');
@@ -773,6 +776,415 @@ function updateMeshDisplay(meshData) {
     
     console.log(`🌐 Mesh: ${meshData.nearby_sensors} sensors, ${meshData.confidence} confidence`);
 }
+
+// ==================== NEW ACCURACY UPGRADES ====================
+
+// Get all accuracy upgrade data
+async function getAccuracyUpgrades(weatherData) {
+    if (!currentLocation.lat || !currentLocation.lng) return;
+    
+    console.log('🎯 Fetching accuracy upgrades...');
+    
+    // Fetch all new data in parallel
+    await Promise.all([
+        getOvernightPrediction(weatherData),
+        getWetPavementStatus(),
+        getRoadTemperature(),
+        getPrecipitationType(),
+        getBridgeFreezeRisk(weatherData)
+    ]);
+}
+
+// Overnight Freeze Prediction
+async function getOvernightPrediction(weatherData) {
+    try {
+        const response = await fetch(`${API_BASE}/api/overnight/freeze-prediction`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_temp_f: weatherData.temperature,
+                dew_point_f: weatherData.dew_point,
+                wind_speed_mph: weatherData.wind_speed,
+                cloud_cover_percent: weatherData.cloud_cover || 0
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.overnight_prediction) {
+                updateOvernightDisplay(data.overnight_prediction);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Overnight prediction error:', error);
+    }
+}
+
+// Wet Pavement Status
+async function getWetPavementStatus() {
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/precipitation/recent?lat=${currentLocation.lat}&lon=${currentLocation.lng}&hours_back=6`
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.recent_precipitation) {
+                updateWetPavementDisplay(data.recent_precipitation);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Wet pavement error:', error);
+    }
+}
+
+// Real Road Temperature from RWIS
+async function getRoadTemperature() {
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/rwis/road-temp?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius_miles=25`
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.road_temp) {
+                updateRoadTempDisplay(data.road_temp);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Road temp error:', error);
+    }
+}
+
+// Precipitation Type
+async function getPrecipitationType() {
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/precipitation/type?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.precipitation_type) {
+                updatePrecipTypeDisplay(data.precipitation_type);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Precipitation type error:', error);
+    }
+}
+
+// Bridge Freeze Risk
+async function getBridgeFreezeRisk(weatherData) {
+    try {
+        const response = await fetch(`${API_BASE}/api/bridge/freeze-risk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_temp_f: weatherData.temperature,
+                wind_speed_mph: weatherData.wind_speed,
+                humidity_percent: weatherData.humidity,
+                bridge_type: 'steel',
+                bridge_length_ft: 200
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.bridge_freeze) {
+                updateBridgeDisplay(data.bridge_freeze);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Bridge freeze error:', error);
+    }
+}
+
+// Update Overnight Freeze Display
+function updateOvernightDisplay(overnightData) {
+    if (!overnightData) return;
+    
+    const freezeTimeEl = document.getElementById('freeze-time');
+    const countdownEl = document.getElementById('freeze-countdown');
+    const minTempEl = document.getElementById('overnight-min-temp');
+    const coolingRateEl = document.getElementById('cooling-rate');
+    const riskBadgeEl = document.getElementById('overnight-risk-badge');
+    const riskLevelEl = document.getElementById('overnight-risk-level');
+    const messageEl = document.getElementById('overnight-message');
+    
+    if (overnightData.will_freeze_tonight) {
+        const freezeTime = new Date(overnightData.freeze_time);
+        const hours = freezeTime.getHours();
+        const minutes = freezeTime.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 || 12;
+        
+        freezeTimeEl.textContent = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        countdownEl.textContent = `in ${overnightData.hours_until_freeze.toFixed(1)} hours`;
+        
+        // Risk level styling
+        const riskLevel = overnightData.risk_level.toUpperCase();
+        riskLevelEl.textContent = riskLevel;
+        
+        if (riskLevel === 'CRITICAL') {
+            riskBadgeEl.style.background = '#dc2626';
+        } else if (riskLevel === 'HIGH') {
+            riskBadgeEl.style.background = '#f59e0b';
+        } else if (riskLevel === 'MODERATE') {
+            riskBadgeEl.style.background = '#eab308';
+        } else {
+            riskBadgeEl.style.background = '#10b981';
+        }
+        
+        messageEl.textContent = overnightData.warning_message || '🌙 Roads will freeze overnight';
+    } else {
+        freezeTimeEl.textContent = 'No freeze';
+        countdownEl.textContent = 'expected tonight';
+        riskLevelEl.textContent = 'LOW';
+        riskBadgeEl.style.background = '#10b981';
+        messageEl.textContent = '✅ Roads should remain clear overnight';
+    }
+    
+    minTempEl.textContent = `${overnightData.minimum_temp_f.toFixed(0)}°F`;
+    coolingRateEl.textContent = `${overnightData.cooling_rate_per_hour.toFixed(1)}°F/hr`;
+    
+    console.log('🌙 Overnight prediction updated:', overnightData.freeze_time);
+}
+
+// Update Wet Pavement Display
+function updateWetPavementDisplay(precipData) {
+    if (!precipData) return;
+    
+    const indicatorEl = document.getElementById('pavement-wet-indicator');
+    const statusTextEl = document.getElementById('pavement-status-text');
+    const multiplierEl = document.getElementById('risk-multiplier');
+    const hoursSinceEl = document.getElementById('hours-since-precip');
+    const warningEl = document.getElementById('wet-pavement-warning');
+    
+    if (precipData.pavement_likely_wet) {
+        indicatorEl.querySelector('.indicator-circle').style.background = '#3b82f6';
+        statusTextEl.textContent = 'PAVEMENT WET';
+        statusTextEl.style.color = '#3b82f6';
+        
+        const multiplier = precipData.black_ice_risk_multiplier.toFixed(1);
+        multiplierEl.textContent = `${multiplier}x`;
+        multiplierEl.style.color = multiplier >= 2.5 ? '#dc2626' : '#f59e0b';
+        
+        hoursSinceEl.textContent = `${precipData.hours_since_precipitation.toFixed(1)} hours ago`;
+        warningEl.textContent = precipData.warning_message || '⚠️ Wet pavement increases black ice risk';
+        warningEl.style.color = '#f59e0b';
+    } else {
+        indicatorEl.querySelector('.indicator-circle').style.background = '#10b981';
+        statusTextEl.textContent = 'PAVEMENT DRY';
+        statusTextEl.style.color = '#10b981';
+        
+        multiplierEl.textContent = '1.0x';
+        multiplierEl.style.color = '#10b981';
+        
+        if (precipData.had_recent_precipitation) {
+            hoursSinceEl.textContent = `${precipData.hours_since_precipitation.toFixed(1)} hours ago (evaporated)`;
+            warningEl.textContent = '✅ Pavement has dried';
+        } else {
+            hoursSinceEl.textContent = 'No recent precipitation';
+            warningEl.textContent = '✅ No recent precipitation detected';
+        }
+        warningEl.style.color = '#10b981';
+    }
+    
+    console.log('💧 Wet pavement updated:', precipData.pavement_likely_wet);
+}
+
+// Update Road Temperature Display
+function updateRoadTempDisplay(roadTempData) {
+    if (!roadTempData) return;
+    
+    const tempValueEl = document.getElementById('road-temp-value');
+    const distanceEl = document.getElementById('sensor-distance');
+    const confidenceEl = document.getElementById('sensor-confidence');
+    const airTempEl = document.getElementById('air-temp-compare');
+    const diffEl = document.getElementById('temp-difference');
+    const messageEl = document.getElementById('road-temp-message');
+    
+    if (roadTempData.road_temp_f !== null) {
+        tempValueEl.textContent = `${roadTempData.road_temp_f.toFixed(0)}°F`;
+        
+        if (roadTempData.road_temp_f <= 32) {
+            tempValueEl.style.color = '#dc2626';
+        } else if (roadTempData.road_temp_f <= 35) {
+            tempValueEl.style.color = '#f59e0b';
+        } else {
+            tempValueEl.style.color = '#10b981';
+        }
+        
+        distanceEl.textContent = `${roadTempData.distance_miles.toFixed(1)} mi away`;
+        
+        const confidence = roadTempData.confidence.toUpperCase();
+        confidenceEl.textContent = confidence;
+        
+        if (confidence === 'HIGH') {
+            confidenceEl.style.background = '#10b981';
+        } else if (confidence === 'MEDIUM') {
+            confidenceEl.style.background = '#f59e0b';
+        } else {
+            confidenceEl.style.background = '#dc2626';
+        }
+        
+        if (roadTempData.air_temp_f !== null) {
+            airTempEl.textContent = `${roadTempData.air_temp_f.toFixed(0)}°F`;
+            const diff = roadTempData.air_temp_f - roadTempData.road_temp_f;
+            diffEl.textContent = `${diff >= 0 ? '+' : ''}${diff.toFixed(0)}°F`;
+            
+            if (Math.abs(diff) >= 5) {
+                diffEl.style.color = '#f59e0b';
+            }
+        }
+        
+        messageEl.textContent = roadTempData.message || '✅ Real road surface temperature from DOT sensor';
+        messageEl.style.color = '#10b981';
+    } else {
+        tempValueEl.textContent = '--°F';
+        distanceEl.textContent = 'No sensors nearby';
+        confidenceEl.textContent = 'N/A';
+        confidenceEl.style.background = '#6b7280';
+        messageEl.textContent = '⚠️ No RWIS sensors within 25 miles - using air temperature';
+        messageEl.style.color = '#f59e0b';
+    }
+    
+    console.log('🌡️ Road temp updated:', roadTempData.road_temp_f);
+}
+
+// Update Precipitation Type Display
+function updatePrecipTypeDisplay(precipTypeData) {
+    if (!precipTypeData) return;
+    
+    const iconEl = document.getElementById('precip-icon');
+    const typeEl = document.getElementById('precip-type');
+    const riskBadgeEl = document.getElementById('precip-risk-badge');
+    const riskLevelEl = document.getElementById('precip-risk-level');
+    const hourlyEl = document.getElementById('precip-hourly');
+    const warningEl = document.getElementById('precip-warning');
+    
+    const precipType = precipTypeData.current_type;
+    
+    // Set icon based on type
+    const icons = {
+        'none': '☀️',
+        'rain': '🌧️',
+        'snow': '❄️',
+        'sleet': '🌨️',
+        'freezing_rain': '🧊',
+        'unknown': '🌫️'
+    };
+    
+    iconEl.textContent = icons[precipType] || '❓';
+    typeEl.textContent = precipType.replace('_', ' ').toUpperCase();
+    
+    // Risk level styling
+    const riskLevel = precipTypeData.black_ice_risk.toUpperCase();
+    riskLevelEl.textContent = `${riskLevel} RISK`;
+    
+    if (riskLevel === 'CRITICAL') {
+        riskBadgeEl.style.background = '#dc2626';
+        typeEl.style.color = '#dc2626';
+        warningEl.textContent = '🚨 FREEZING RAIN - IMMEDIATE BLACK ICE DANGER!';
+        warningEl.style.color = '#dc2626';
+        warningEl.style.fontWeight = 'bold';
+    } else if (riskLevel === 'HIGH') {
+        riskBadgeEl.style.background = '#f59e0b';
+        typeEl.style.color = '#f59e0b';
+        warningEl.textContent = precipTypeData.warning_message || '⚠️ High black ice risk';
+        warningEl.style.color = '#f59e0b';
+    } else if (riskLevel === 'MODERATE') {
+        riskBadgeEl.style.background = '#eab308';
+        typeEl.style.color = '#eab308';
+        warningEl.textContent = precipTypeData.warning_message || 'ℹ️ Moderate black ice risk';
+        warningEl.style.color = '#eab308';
+    } else {
+        riskBadgeEl.style.background = '#10b981';
+        typeEl.style.color = '#10b981';
+        warningEl.textContent = '✅ Low black ice risk from precipitation';
+        warningEl.style.color = '#10b981';
+    }
+    
+    // Update hourly forecast (show next 3 hours)
+    if (precipTypeData.forecast_next_hour) {
+        const hourlyHTML = precipTypeData.forecast_next_hour.slice(0, 3).map(hour => {
+            const time = new Date(hour.time).getHours();
+            const ampm = time >= 12 ? 'PM' : 'AM';
+            const displayTime = (time % 12 || 12) + ampm;
+            
+            return `
+                <div class="hour-item">
+                    <div class="hour-time">${displayTime}</div>
+                    <div class="hour-type">${icons[hour.type] || '❓'} ${hour.type.replace('_', ' ')}</div>
+                </div>
+            `;
+        }).join('');
+        
+        hourlyEl.innerHTML = hourlyHTML;
+    }
+    
+    console.log('🌨️ Precipitation type updated:', precipType);
+}
+
+// Update Bridge Freeze Display
+function updateBridgeDisplay(bridgeData) {
+    if (!bridgeData) return;
+    
+    const freezeTempEl = document.getElementById('bridge-freeze-temp');
+    const dangerZoneEl = document.getElementById('bridge-danger-zone');
+    const factorsEl = document.getElementById('bridge-factors');
+    const warningEl = document.getElementById('bridge-warning');
+    
+    freezeTempEl.textContent = `${bridgeData.bridge_freeze_temp_f.toFixed(0)}°F`;
+    
+    const tempDiff = bridgeData.bridge_freeze_temp_f - 32;
+    dangerZoneEl.textContent = `${tempDiff.toFixed(0)}°F warmer`;
+    
+    // Styling based on freeze temp
+    if (bridgeData.bridge_freeze_temp_f <= 35) {
+        freezeTempEl.style.color = '#dc2626';
+    } else if (bridgeData.bridge_freeze_temp_f <= 38) {
+        freezeTempEl.style.color = '#f59e0b';
+    } else {
+        freezeTempEl.style.color = '#eab308';
+    }
+    
+    // Show risk factors
+    const factors = [];
+    if (bridgeData.wind_impact_f > 1) {
+        factors.push(`High wind (+${bridgeData.wind_impact_f.toFixed(1)}°F)`);
+    }
+    if (bridgeData.humidity_impact_f > 1) {
+        factors.push(`High humidity (+${bridgeData.humidity_impact_f.toFixed(1)}°F)`);
+    }
+    if (bridgeData.material_offset_f >= 3) {
+        factors.push(`Steel bridge (+${bridgeData.material_offset_f}°F)`);
+    }
+    
+    if (factors.length > 0) {
+        factorsEl.innerHTML = factors.map(f => `<div class="factor-item">• ${f}</div>`).join('');
+    } else {
+        factorsEl.innerHTML = '<div class="factor-item">• Standard conditions</div>';
+    }
+    
+    // Warning message
+    if (bridgeData.currently_frozen) {
+        warningEl.textContent = '🚨 BRIDGES ARE FREEZING NOW!';
+        warningEl.style.color = '#dc2626';
+        warningEl.style.fontWeight = 'bold';
+    } else if (bridgeData.will_freeze_soon) {
+        warningEl.textContent = bridgeData.warning_message || `⚠️ Bridges will freeze in ${bridgeData.minutes_until_freeze} minutes`;
+        warningEl.style.color = '#f59e0b';
+    } else {
+        warningEl.textContent = bridgeData.warning_message || '✅ Bridges above freezing temperature';
+        warningEl.style.color = '#10b981';
+    }
+    
+    console.log('🌉 Bridge freeze updated:', bridgeData.bridge_freeze_temp_f);
+}
+
+// ==================== END ACCURACY UPGRADES ====================
 
 // Initialize IoT mesh network
 async function initializeMeshNetwork() {
