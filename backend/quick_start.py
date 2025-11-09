@@ -22,6 +22,11 @@ from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
 from road_safety_mesh import RoadSafetyMeshNetwork
 from bifi_calculator import BlackIceFormationIndex
 
+# NEW: Accuracy upgrade services
+from rwis_service import RWISService
+from precipitation_type_service import PrecipitationTypeService
+from bridge_freeze_calculator import BridgeFreezeCalculator
+
 load_dotenv()
 
 # Setup Flask with frontend files
@@ -43,10 +48,18 @@ qfpm = QuantumFreezeProbabilityMatrix(num_qubits=20)  # 20-qubit QFPM
 mesh_network = RoadSafetyMeshNetwork()
 bifi_calc = BlackIceFormationIndex()
 
+# Initialize accuracy upgrade services
+rwis = RWISService()  # Real road surface temps from DOT sensors
+precip_service = PrecipitationTypeService()  # Freezing rain detection
+bridge_calc = BridgeFreezeCalculator()  # Enhanced bridge freeze prediction
+
 print("✅ Quantum predictor initialized: 10 qubits")
 print("✅ QFPM initialized: 20 qubits")
 print("✅ IoT Mesh Network ready")
 print("✅ BIFI Calculator ready")
+print("✅ RWIS Service ready (Real road temps)")
+print("✅ Precipitation Type Service ready (Freezing rain detection)")
+print("✅ Bridge Freeze Calculator ready")
 print("✅ NOAA weather service ready")
 print("✅ Advanced weather calculator ready")
 
@@ -391,6 +404,146 @@ def advanced_predict():
         return jsonify({
             'success': True,
             'predictions': results,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============ ACCURACY UPGRADE ENDPOINTS ============
+
+# RWIS - Real Road Surface Temperatures
+@app.route('/api/rwis/road-temp', methods=['GET'])
+def get_rwis_road_temp():
+    """Get real road surface temperature from nearest DOT sensor"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        road_temp_data = rwis.get_road_temp_estimate(lat, lon)
+        return jsonify({
+            'success': True,
+            'road_temp_data': road_temp_data,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# RWIS - Regional Freeze Map
+@app.route('/api/rwis/freeze-map', methods=['GET'])
+def get_rwis_freeze_map():
+    """Get freeze status from multiple nearby sensors"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        freeze_map = rwis.get_regional_freeze_map(lat, lon)
+        return jsonify({
+            'success': True,
+            'freeze_map': freeze_map,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Precipitation Type Detection
+@app.route('/api/precipitation/type', methods=['GET'])
+def get_precipitation_type():
+    """Detect freezing rain, sleet, snow, etc."""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        precip_data = precip_service.get_precipitation_type(lat, lon)
+        return jsonify({
+            'success': True,
+            'precipitation': precip_data,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Hourly Precipitation Forecast
+@app.route('/api/precipitation/forecast', methods=['GET'])
+def get_precipitation_forecast():
+    """Get hour-by-hour precipitation forecast with black ice risk"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    hours = request.args.get('hours', type=int, default=6)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        forecast = precip_service.get_hourly_precipitation_forecast(lat, lon, hours)
+        return jsonify({
+            'success': True,
+            'hourly_forecast': forecast,
+            'hours': len(forecast),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Bridge Freeze Calculation
+@app.route('/api/bridge/freeze-risk', methods=['POST'])
+def calculate_bridge_freeze():
+    """Calculate when a bridge will freeze (bridges freeze at warmer temps)"""
+    data = request.json
+    
+    if not data:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    try:
+        air_temp = data.get('air_temp_f')
+        wind_speed = data.get('wind_speed_mph', 5)
+        humidity = data.get('humidity_percent', 70)
+        bridge_material = data.get('bridge_material', 'concrete')
+        bridge_length = data.get('bridge_length_ft')
+        
+        if air_temp is None:
+            return jsonify({'error': 'air_temp_f required'}), 400
+        
+        freeze_data = bridge_calc.calculate_bridge_freeze_temp(
+            air_temp, wind_speed, humidity, bridge_material, bridge_length
+        )
+        
+        return jsonify({
+            'success': True,
+            'bridge_freeze': freeze_data,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Bridge vs Road Comparison
+@app.route('/api/bridge/compare', methods=['POST'])
+def compare_bridge_road():
+    """Compare freeze risk: bridge vs regular road"""
+    data = request.json
+    
+    if not data:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    try:
+        comparison = bridge_calc.compare_bridge_vs_road(
+            data.get('air_temp_f'),
+            data.get('wind_speed_mph', 5),
+            data.get('humidity_percent', 70),
+            data.get('bridge_material', 'concrete')
+        )
+        
+        return jsonify({
+            'success': True,
+            'comparison': comparison,
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
