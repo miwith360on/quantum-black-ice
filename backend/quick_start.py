@@ -26,6 +26,8 @@ from bifi_calculator import BlackIceFormationIndex
 from rwis_service import RWISService
 from precipitation_type_service import PrecipitationTypeService
 from bridge_freeze_calculator import BridgeFreezeCalculator
+from overnight_cooling_predictor import OvernightCoolingPredictor
+from recent_precipitation_tracker import RecentPrecipitationTracker
 
 load_dotenv()
 
@@ -52,6 +54,8 @@ bifi_calc = BlackIceFormationIndex()
 rwis = RWISService()  # Real road surface temps from DOT sensors
 precip_service = PrecipitationTypeService()  # Freezing rain detection
 bridge_calc = BridgeFreezeCalculator()  # Enhanced bridge freeze prediction
+overnight_cooling = OvernightCoolingPredictor()  # 2-6 AM freeze prediction
+recent_precip_tracker = RecentPrecipitationTracker()  # Wet pavement detection
 
 print("✅ Quantum predictor initialized: 10 qubits")
 print("✅ QFPM initialized: 20 qubits")
@@ -60,6 +64,8 @@ print("✅ BIFI Calculator ready")
 print("✅ RWIS Service ready (Real road temps)")
 print("✅ Precipitation Type Service ready (Freezing rain detection)")
 print("✅ Bridge Freeze Calculator ready")
+print("✅ Overnight Cooling Predictor ready (2-6 AM freeze timing)")
+print("✅ Recent Precipitation Tracker ready (Wet pavement detection)")
 print("✅ NOAA weather service ready")
 print("✅ Advanced weather calculator ready")
 
@@ -544,6 +550,85 @@ def compare_bridge_road():
         return jsonify({
             'success': True,
             'comparison': comparison,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Overnight Cooling Prediction
+@app.route('/api/overnight/freeze-prediction', methods=['POST'])
+def predict_overnight_freeze():
+    """Predict when roads will freeze overnight (critical for 2-6 AM)"""
+    data = request.json
+    
+    if not data:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    try:
+        from datetime import datetime
+        
+        prediction = overnight_cooling.predict_freeze_time(
+            current_temp_f=data.get('current_temp_f'),
+            current_time=datetime.now(),
+            dew_point_f=data.get('dew_point_f'),
+            wind_speed_mph=data.get('wind_speed_mph', 5),
+            cloud_cover_percent=data.get('cloud_cover_percent', 0)
+        )
+        
+        return jsonify({
+            'success': True,
+            'overnight_prediction': prediction,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Hourly Cooling Forecast
+@app.route('/api/overnight/hourly-forecast', methods=['POST'])
+def get_hourly_cooling():
+    """Get hour-by-hour temperature drop forecast"""
+    data = request.json
+    
+    if not data:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    try:
+        forecast = overnight_cooling.get_hourly_cooling_forecast(
+            current_temp_f=data.get('current_temp_f'),
+            dew_point_f=data.get('dew_point_f'),
+            wind_speed_mph=data.get('wind_speed_mph', 5),
+            cloud_cover_percent=data.get('cloud_cover_percent', 0),
+            hours=data.get('hours', 12)
+        )
+        
+        return jsonify({
+            'success': True,
+            'hourly_forecast': forecast,
+            'hours': len(forecast),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Recent Precipitation Check
+@app.route('/api/precipitation/recent', methods=['GET'])
+def check_recent_precipitation():
+    """Check if roads are wet from recent rain/snow"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    hours_back = request.args.get('hours_back', type=int, default=6)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        precip_data = recent_precip_tracker.check_recent_precipitation(
+            lat, lon, hours_back
+        )
+        
+        return jsonify({
+            'success': True,
+            'recent_precipitation': precip_data,
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
