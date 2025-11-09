@@ -1,11 +1,12 @@
 """
 Road Weather Information System (RWIS) Integration
 Connects to MesoWest API for real-time road surface temperature data from DOT sensors
-Free API - no key required for basic usage
+Free API - sign up at https://synopticdata.com/mesonet/signup/ for 5,000 requests/day
 """
 
 import requests
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -15,10 +16,17 @@ class RWISService:
     """Get real road surface temperatures from DOT weather stations"""
     
     def __init__(self, api_token: Optional[str] = None):
-        # MesoWest API - can use without token for limited requests
+        # MesoWest API - read from environment variable
         # Sign up for free token at: https://synopticdata.com/mesonet/signup/
-        self.api_token = api_token or "demotoken"  # Limited demo access
+        self.api_token = api_token or os.getenv('MESOWEST_API_TOKEN', 'demotoken')
         self.base_url = "https://api.synopticdata.com/v2"
+        self.is_demo_token = self.api_token == 'demotoken'
+        
+        if self.is_demo_token:
+            logger.warning("⚠️ Using MesoWest demo token - limited to 5 requests/minute. Set MESOWEST_API_TOKEN environment variable for 5,000/day free.")
+        else:
+            logger.info("✅ RWIS Service initialized with API token")
+        
         logger.info("RWIS Service initialized (MesoWest)")
     
     def get_nearby_road_sensors(self, lat: float, lon: float, radius_miles: int = 25) -> List[Dict]:
@@ -49,6 +57,14 @@ class RWISService:
                 params=params,
                 timeout=30
             )
+            
+            # Handle 403 Forbidden (rate limit or invalid token)
+            if response.status_code == 403:
+                if self.is_demo_token:
+                    logger.warning("⚠️ MesoWest demo token rate limit reached. Returning gracefully with no data.")
+                else:
+                    logger.error("❌ MesoWest API 403 - Invalid/expired token. Check MESOWEST_API_TOKEN environment variable.")
+                return []
             
             if response.status_code != 200:
                 logger.warning(f"MesoWest API error: {response.status_code}")

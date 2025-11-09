@@ -16,6 +16,7 @@ from quantum_predictor import QuantumBlackIcePredictor
 from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
 from weather_service import WeatherService
+from road_risk_analyzer import RoadRiskAnalyzer
 
 # NEW: Advanced prediction systems
 from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
@@ -44,6 +45,7 @@ quantum_predictor = QuantumBlackIcePredictor()
 weather_calculator = AdvancedWeatherCalculator()
 noaa_service = NOAAWeatherService()
 weather_service = WeatherService(api_key=os.getenv('OPENWEATHER_API_KEY'))
+road_analyzer = RoadRiskAnalyzer()
 
 # Initialize NEW advanced systems
 qfpm = QuantumFreezeProbabilityMatrix(num_qubits=20)  # 20-qubit QFPM
@@ -61,6 +63,7 @@ print("✅ Quantum predictor initialized: 10 qubits")
 print("✅ QFPM initialized: 20 qubits")
 print("✅ IoT Mesh Network ready")
 print("✅ BIFI Calculator ready")
+print("✅ Road Risk Analyzer ready (OpenStreetMap)")
 print("✅ RWIS Service ready (Real road temps)")
 print("✅ Precipitation Type Service ready (Freezing rain detection)")
 print("✅ Bridge Freeze Calculator ready")
@@ -685,6 +688,26 @@ def check_recent_precipitation():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Road Hazard Analysis
+@app.route('/api/road/analyze', methods=['GET'])
+def analyze_road_risks():
+    """
+    Analyze road features for black ice risk zones (bridges, overpasses, tunnels)
+    Query params: lat, lon, radius (optional, default 5000m)
+    """
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius = request.args.get('radius', type=float, default=5000)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        road_features = road_analyzer.get_high_risk_roads(lat, lon, radius)
+        return jsonify(road_features)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # ============ WEBSOCKET HANDLERS ============
 
 @socketio.on('connect')
@@ -705,4 +728,15 @@ if __name__ == '__main__':
     print(f"📊 BIFI Calculator Online!")
     print(f"📡 WebSocket: Enabled\n")
     
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+    # Production mode: use eventlet worker for WebSocket support
+    # Development mode: allow unsafe werkzeug for testing
+    is_production = os.getenv('RENDER') or os.getenv('RAILWAY_ENVIRONMENT')
+    
+    if is_production:
+        print("🔧 Production mode: Using eventlet worker for WebSocket")
+        # In production, gunicorn will handle this via render.yaml or Procfile
+        # This is just for local production testing
+        socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    else:
+        print("🔧 Development mode: Using unsafe Werkzeug (local only)")
+        socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)

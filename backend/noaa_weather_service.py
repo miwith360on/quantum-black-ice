@@ -5,7 +5,10 @@ Provides high-quality US weather data, alerts, and forecasts
 
 import requests
 import logging
+import time
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,73 @@ class NOAAWeatherService:
             'User-Agent': '(Quantum Black Ice Detection, contact@example.com)',
             'Accept': 'application/json'
         }
-        logger.info("NOAA Weather Service initialized")
+        
+        # Create session with retry strategy for resilience
+        self.session = requests.Session()
+        
+        # Retry strategy: 3 retries with exponential backoff
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,  # Wait 1s, 2s, 4s between retries
+            status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP codes
+            allowed_methods=["GET", "POST"]  # Retry GET and POST requests
+        )
+        
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+        
+        logger.info("✅ NOAA Weather Service initialized with retry strategy")
+    
+    def _safe_get(self, url, max_retries=3):
+        """
+        Make HTTP GET request with SSL error handling and retries
+        
+        Args:
+            url: URL to fetch
+            max_retries: Maximum number of retry attempts
+            
+        Returns:
+            Response object or None on failure
+        """
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    url, 
+                    headers=self.headers, 
+                    timeout=30,
+                    verify=True  # Verify SSL certificates
+                )
+                response.raise_for_status()
+                return response
+                
+            except requests.exceptions.SSLError as e:
+                logger.warning(f"⚠️ SSL error on attempt {attempt + 1}/{max_retries}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                    continue
+                logger.error(f"❌ SSL error after {max_retries} attempts")
+                return None
+                
+            except (requests.exceptions.ConnectionError, 
+                    requests.exceptions.Timeout,
+                    requests.exceptions.ChunkedEncodingError) as e:
+                logger.warning(f"⚠️ Connection error on attempt {attempt + 1}/{max_retries}: {type(e).__name__}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                logger.error(f"❌ Connection failed after {max_retries} attempts")
+                return None
+                
+            except requests.exceptions.HTTPError as e:
+                logger.error(f"❌ HTTP error: {e}")
+                return None
+                
+            except Exception as e:
+                logger.error(f"❌ Unexpected error: {type(e).__name__}: {e}")
+                return None
+        
+        return None
     
     def get_gridpoint(self, lat, lon):
         """
@@ -37,8 +106,11 @@ class NOAAWeatherService:
         """
         try:
             url = f"{self.base_url}/points/{lat},{lon}"
-            response = requests.get(url, headers=self.headers, timeout=30)  # Increased from 10 to 30
-            response.raise_for_status()
+            response = self._safe_get(url)
+            
+            if not response:
+                logger.error("Failed to get gridpoint after retries")
+                return None
             
             data = response.json()
             properties = data.get('properties', {})
@@ -57,9 +129,6 @@ class NOAAWeatherService:
             return gridpoint
             
         except Exception as e:
-            logger.error(f"Error getting gridpoint: {e}")
-            return None
-    
     def get_nearest_station(self, lat, lon):
         """
         Find nearest NOAA observation station
@@ -80,8 +149,11 @@ class NOAAWeatherService:
             if not stations_url:
                 return None
             
-            response = requests.get(stations_url, headers=self.headers, timeout=30)
-            response.raise_for_status()
+            response = self._safe_get(stations_url)
+            
+            if not response:
+                logger.error("Failed to get stations after retries")
+                return None
             
             data = response.json()
             stations = data.get('features', [])
@@ -95,6 +167,9 @@ class NOAAWeatherService:
             
             return None
             
+        except Exception as e:
+            logger.error(f"Error getting nearest station: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error getting nearest station: {e}")
             return None
@@ -117,8 +192,11 @@ class NOAAWeatherService:
                 return None
             
             url = f"{self.base_url}/stations/{station_id}/observations/latest"
-            response = requests.get(url, headers=self.headers, timeout=30)
-            response.raise_for_status()
+            response = self._safe_get(url)
+            
+            if not response:
+                logger.error("Failed to get observations after retries")
+                return None
             
             data = response.json()
             properties = data.get('properties', {})
@@ -168,8 +246,11 @@ class NOAAWeatherService:
             if not forecast_url:
                 return None
             
-            response = requests.get(forecast_url, headers=self.headers, timeout=30)
-            response.raise_for_status()
+            response = self._safe_get(forecast_url)
+            
+            if not response:
+                logger.error("Failed to get forecast after retries")
+                return None
             
             data = response.json()
             periods = data.get('properties', {}).get('periods', [])
@@ -210,8 +291,11 @@ class NOAAWeatherService:
         """
         try:
             url = f"{self.base_url}/alerts/active?point={lat},{lon}"
-            response = requests.get(url, headers=self.headers, timeout=30)
-            response.raise_for_status()
+            response = self._safe_get(url)
+            
+            if not response:
+                logger.error("Failed to get alerts after retries")
+                return []
             
             data = response.json()
             features = data.get('features', [])

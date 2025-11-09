@@ -5,13 +5,17 @@ services:
     region: oregon
     plan: free
     branch: main
-    buildCommand: "cd backend && pip install -r requirements.txt"
-    startCommand: "cd backend && python quick_start.py"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "cd backend && gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT quick_start:app"
     envVars:
       - key: PORT
         value: 8080
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: RENDER
+        value: true
       - key: MESOWEST_API_TOKEN
-        value: demotoken
+        sync: false
+      - key: OPENWEATHER_API_KEY
+        sync: false
     healthCheckPath: /api/health

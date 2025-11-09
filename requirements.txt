@@ -16,6 +16,10 @@ pennylane==0.43.0
 # Real-Time WebSocket Dependencies
 flask-socketio==5.5.1
 python-socketio==5.14.3
+eventlet==0.36.1
+
+# Production WSGI Server
+gunicorn==21.2.0
 
 # Additional dependencies (installed with tensorflow)
 keras>=3.12.0
