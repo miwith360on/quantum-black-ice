@@ -129,6 +129,9 @@ class NOAAWeatherService:
             return gridpoint
             
         except Exception as e:
+            logger.error(f"Error getting gridpoint: {e}")
+            return None
+
     def get_nearest_station(self, lat, lon):
         """
         Find nearest NOAA observation station
@@ -167,9 +170,6 @@ class NOAAWeatherService:
             
             return None
             
-        except Exception as e:
-            logger.error(f"Error getting nearest station: {e}")
-            return None
         except Exception as e:
             logger.error(f"Error getting nearest station: {e}")
             return None
