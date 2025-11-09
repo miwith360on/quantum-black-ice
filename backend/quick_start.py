@@ -66,7 +66,14 @@ def health_check():
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
         'quantum_qubits': 10,
-        'service': 'Quantum Black Ice Detection (Fast Mode)'
+        'service': 'Quantum Black Ice Detection (Fast Mode)',
+        'version': '3.0-advanced-features',
+        'endpoints': [
+            '/api/advanced/predict',
+            '/api/bifi/calculate', 
+            '/api/qfpm/predict',
+            '/api/mesh/initialize'
+        ]
     })
 
 # Weather endpoint with enhancements
