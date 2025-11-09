@@ -549,14 +549,15 @@ def calculate_bridge_freeze():
         return jsonify({'error': 'Request body required'}), 400
     
     try:
-        air_temp = data.get('air_temp_f')
-        wind_speed = data.get('wind_speed_mph', 5)
-        humidity = data.get('humidity_percent', 70)
-        bridge_material = data.get('bridge_material', 'concrete')
-        bridge_length = data.get('bridge_length_ft')
+        # Accept multiple key names for flexibility
+        air_temp = data.get('air_temp_f') or data.get('current_temp_f') or data.get('temperature')
+        wind_speed = data.get('wind_speed_mph') or data.get('wind_speed') or 5
+        humidity = data.get('humidity_percent') or data.get('humidity') or 70
+        bridge_material = data.get('bridge_material') or data.get('bridge_type') or 'concrete'
+        bridge_length = data.get('bridge_length_ft') or 200
         
         if air_temp is None:
-            return jsonify({'error': 'air_temp_f required'}), 400
+            return jsonify({'error': 'temperature data required (air_temp_f, current_temp_f, or temperature)'}), 400
         
         freeze_data = bridge_calc.calculate_bridge_freeze_temp(
             air_temp, wind_speed, humidity, bridge_material, bridge_length
