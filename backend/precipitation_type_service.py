@@ -75,7 +75,7 @@ class PrecipitationTypeService:
             # First, get the forecast grid endpoint for this location
             points_url = f"{self.base_url}/points/{lat:.4f},{lon:.4f}"
             
-            response = requests.get(points_url, timeout=10, headers={
+            response = requests.get(points_url, timeout=30, headers={
                 'User-Agent': 'QuantumBlackIceDetector/1.0'
             })
             
@@ -93,7 +93,7 @@ class PrecipitationTypeService:
                 return None
             
             # Get hourly forecast
-            forecast_response = requests.get(forecast_hourly_url, timeout=10, headers={
+            forecast_response = requests.get(forecast_hourly_url, timeout=30, headers={
                 'User-Agent': 'QuantumBlackIceDetector/1.0'
             })
             

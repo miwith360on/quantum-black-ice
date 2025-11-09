@@ -47,7 +47,7 @@ class RWISService:
             response = requests.get(
                 f"{self.base_url}/stations/latest",
                 params=params,
-                timeout=10
+                timeout=30
             )
             
             if response.status_code != 200:

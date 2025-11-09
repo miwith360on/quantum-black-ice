@@ -92,7 +92,7 @@ class RecentPrecipitationTracker:
             'precipitation_unit': 'inch'
         }
         
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=30)
         
         if response.status_code != 200:
             logger.warning(f"Open-Meteo API error: {response.status_code}")

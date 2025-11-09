@@ -37,7 +37,7 @@ class NOAAWeatherService:
         """
         try:
             url = f"{self.base_url}/points/{lat},{lon}"
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(url, headers=self.headers, timeout=30)  # Increased from 10 to 30
             response.raise_for_status()
             
             data = response.json()
@@ -80,7 +80,7 @@ class NOAAWeatherService:
             if not stations_url:
                 return None
             
-            response = requests.get(stations_url, headers=self.headers, timeout=10)
+            response = requests.get(stations_url, headers=self.headers, timeout=30)
             response.raise_for_status()
             
             data = response.json()
@@ -117,7 +117,7 @@ class NOAAWeatherService:
                 return None
             
             url = f"{self.base_url}/stations/{station_id}/observations/latest"
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             
             data = response.json()
@@ -168,7 +168,7 @@ class NOAAWeatherService:
             if not forecast_url:
                 return None
             
-            response = requests.get(forecast_url, headers=self.headers, timeout=10)
+            response = requests.get(forecast_url, headers=self.headers, timeout=30)
             response.raise_for_status()
             
             data = response.json()
@@ -210,7 +210,7 @@ class NOAAWeatherService:
         """
         try:
             url = f"{self.base_url}/alerts/active?point={lat},{lon}"
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             
             data = response.json()
