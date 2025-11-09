@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: quantum-black-ice
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && python quick_start.py"
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: MESOWEST_API_TOKEN
+        value: demotoken
+    healthCheckPath: /api/health
