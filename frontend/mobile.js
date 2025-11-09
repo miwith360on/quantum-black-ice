@@ -568,6 +568,7 @@ function showAlert(message, severity = 'info') {
 // Get all advanced predictions in one call
 async function getAdvancedPredictions(weatherData) {
     try {
+        // Try the combined endpoint first
         const response = await fetch(`${API_BASE}/api/advanced/predict`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -578,25 +579,74 @@ async function getAdvancedPredictions(weatherData) {
             })
         });
         
-        if (!response.ok) throw new Error('Advanced predictions failed');
-        
-        const data = await response.json();
-        console.log('✅ Advanced predictions received:', data);
-        
-        if (data.success) {
-            updateBIFIDisplay(data.predictions.bifi);
-            updateQFPMDisplay(data.predictions.qfpm);
-            if (data.predictions.mesh) {
-                updateMeshDisplay(data.predictions.mesh);
-            }
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Advanced predictions received:', data);
             
-            // Initialize IoT sensors if not already done
-            if (!window.sensorsInitialized && currentLocation.lat) {
-                initializeMeshNetwork();
+            if (data.success) {
+                updateBIFIDisplay(data.predictions.bifi);
+                updateQFPMDisplay(data.predictions.qfpm);
+                if (data.predictions.mesh) {
+                    updateMeshDisplay(data.predictions.mesh);
+                }
+                
+                // Initialize IoT sensors if not already done
+                if (!window.sensorsInitialized && currentLocation.lat) {
+                    initializeMeshNetwork();
+                }
+                return; // Success, exit early
             }
         }
     } catch (error) {
         console.error('❌ Advanced predictions error:', error);
+    }
+    
+    // Fallback: Call endpoints individually
+    console.log('⚠️ Using fallback individual endpoints');
+    await getBIFIPrediction(weatherData);
+    await getQFPMPrediction(weatherData);
+    if (!window.sensorsInitialized && currentLocation.lat) {
+        initializeMeshNetwork();
+    }
+}
+
+// Fallback: Get BIFI individually
+async function getBIFIPrediction(weatherData) {
+    try {
+        const response = await fetch(`${API_BASE}/api/bifi/calculate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ weather_data: weatherData })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                updateBIFIDisplay(data.bifi);
+            }
+        }
+    } catch (error) {
+        console.error('❌ BIFI error:', error);
+    }
+}
+
+// Fallback: Get QFPM individually
+async function getQFPMPrediction(weatherData) {
+    try {
+        const response = await fetch(`${API_BASE}/api/qfpm/predict`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ weather_data: weatherData })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                updateQFPMDisplay(data.qfpm);
+            }
+        }
+    } catch (error) {
+        console.error('❌ QFPM error:', error);
     }
 }
 
