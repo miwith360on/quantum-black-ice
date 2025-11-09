@@ -6,8 +6,29 @@ const API_BASE = window.location.origin.includes('localhost')
     ? 'http://localhost:5000' 
     : window.location.origin;
 
+// App version for cache detection
+const APP_VERSION = '3.0.1-accuracy-upgrades';
+
 console.log('🔧 API_BASE configured as:', API_BASE);
 console.log('🌍 Current origin:', window.location.origin);
+console.log('📱 App version:', APP_VERSION);
+
+// Check if accuracy upgrades are available
+if (typeof getAccuracyUpgrades !== 'function') {
+    console.error('❌ CRITICAL: Accuracy upgrade functions missing! Browser cache issue detected.');
+    console.warn('🔄 Please do a hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)');
+    
+    // Show alert to user
+    setTimeout(() => {
+        if (typeof showAlert === 'function') {
+            showAlert('⚠️ App update detected! Please refresh your browser (Ctrl+Shift+R) to load new features.', 'warning');
+        } else {
+            alert('⚠️ App update detected! Please refresh your browser (Ctrl+Shift+R or pull down to refresh on mobile) to load new accuracy features.');
+        }
+    }, 2000);
+} else {
+    console.log('✅ Accuracy upgrades loaded successfully');
+}
 
 // Global state
 let map = null;
