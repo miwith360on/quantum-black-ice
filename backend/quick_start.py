@@ -7,6 +7,7 @@ Deployed on Railway - Auto-updates from GitHub
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from datetime import datetime
 import os
 from dotenv import load_dotenv
@@ -26,7 +27,10 @@ load_dotenv()
 # Setup Flask with frontend files
 static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Initialize SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Initialize quantum services
 quantum_predictor = QuantumBlackIcePredictor()
@@ -385,6 +389,16 @@ def advanced_predict():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ============ WEBSOCKET HANDLERS ============
+
+@socketio.on('connect')
+def handle_connect():
+    print('✅ WebSocket client connected')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('🔌 WebSocket client disconnected')
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     print(f"\n🚀 Starting Quantum Black Ice Server (Fast Mode)")
@@ -392,6 +406,7 @@ if __name__ == '__main__':
     print(f"📱 Mobile: http://localhost:{port}/mobile.html")
     print(f"⚛️ 20-Qubit QFPM System Ready!")
     print(f"🌐 IoT Mesh Network Active!")
-    print(f"📊 BIFI Calculator Online!\n")
+    print(f"📊 BIFI Calculator Online!")
+    print(f"📡 WebSocket: Enabled\n")
     
-    app.run(host='0.0.0.0', port=port, debug=False)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
