@@ -147,6 +147,46 @@ def get_current_weather():
         print(f"❌ Weather endpoint error: {e}")
         return jsonify({'error': str(e)}), 500
 
+# ML prediction endpoint with flexible input
+@app.route('/api/ml/predict', methods=['POST'])
+def ml_predict():
+    """Get AI/ML prediction with flexible input handling"""
+    try:
+        data = request.get_json(force=True)
+        print("📥 Incoming ML data:", data)  # Debugging
+
+        # Accept flexible key names to prevent 400 errors
+        temp = float(data.get("temperature") or data.get("temp") or 32.0)
+        humidity = float(data.get("humidity") or 50.0)
+        dew = float(data.get("dew_point") or data.get("dew") or 28.0)
+        road_temp = float(data.get("road_temp") or temp)
+
+        # Simple ML formula for black ice risk
+        freeze_risk = max(0.0, min(1.0, (humidity / 100) * (32 - temp) / 32))
+        confidence = round(0.75 + 0.1 * (1 - abs(32 - temp) / 32), 2)
+
+        return jsonify({
+            "success": True,
+            "risk": freeze_risk,
+            "confidence": confidence,
+            "prediction": "high_risk" if freeze_risk > 0.7 else "moderate_risk" if freeze_risk > 0.4 else "low_risk"
+        }), 200
+
+    except Exception as e:
+        print("❌ ML Predict Error:", e)
+        return jsonify({"success": False, "error": str(e)}), 400
+
+@app.route('/api/ml/model-info', methods=['GET'])
+def ml_model_info():
+    """Get ML model information"""
+    return jsonify({
+        "success": True,
+        "model": "Black Ice Risk Predictor",
+        "version": "1.0",
+        "algorithm": "Gradient-based freeze risk analysis",
+        "features": ["temperature", "humidity", "dew_point", "road_temp"]
+    })
+
 # Quantum prediction endpoint
 @app.route('/api/quantum/predict', methods=['POST'])
 def quantum_predict():

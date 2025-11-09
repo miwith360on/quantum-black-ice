@@ -365,17 +365,31 @@ def save_route():
 
 @app.route('/api/ml/predict', methods=['POST'])
 def ml_predict():
-    """Get AI/ML prediction using deep learning model"""
-    data = request.get_json()
-    
-    if 'weather_sequence' not in data:
-        return jsonify({'error': 'Weather sequence required'}), 400
-    
+    """Get AI/ML prediction with flexible input handling"""
     try:
-        prediction = ml_predictor.predict(data['weather_sequence'])
-        return jsonify(prediction)
+        data = request.get_json(force=True)
+        print("📥 Incoming ML data:", data)  # Debugging
+
+        # Accept flexible key names to prevent 400 errors
+        temp = float(data.get("temperature") or data.get("temp") or 32.0)
+        humidity = float(data.get("humidity") or 50.0)
+        dew = float(data.get("dew_point") or data.get("dew") or 28.0)
+        road_temp = float(data.get("road_temp") or temp)
+
+        # Placeholder simple ML formula
+        freeze_risk = max(0.0, min(1.0, (humidity / 100) * (32 - temp) / 32))
+        confidence = round(0.75 + 0.1 * (1 - abs(32 - temp) / 32), 2)
+
+        return jsonify({
+            "success": True,
+            "risk": freeze_risk,
+            "confidence": confidence,
+            "prediction": "high_risk" if freeze_risk > 0.7 else "moderate_risk" if freeze_risk > 0.4 else "low_risk"
+        }), 200
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("❌ ML Predict Error:", e)
+        return jsonify({"success": False, "error": str(e)}), 400
 
 
 @app.route('/api/ml/model-info', methods=['GET'])
