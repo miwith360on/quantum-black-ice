@@ -18,7 +18,8 @@ class RWISService:
     def __init__(self, api_token: Optional[str] = None):
         # MesoWest API - read from environment variable
         # Sign up for free token at: https://synopticdata.com/mesonet/signup/
-        self.api_token = api_token or os.getenv('MESOWEST_API_TOKEN', 'demotoken')
+        # Try both MESOWEST_TOKEN and MESOWEST_API_TOKEN for compatibility
+        self.api_token = api_token or os.getenv('MESOWEST_TOKEN') or os.getenv('MESOWEST_API_TOKEN', 'demotoken')
         self.base_url = "https://api.synopticdata.com/v2"
         self.is_demo_token = self.api_token == 'demotoken'
         
