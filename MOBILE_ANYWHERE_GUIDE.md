@@ -48,13 +48,12 @@ You want to test your Black Ice Detection System this week when it snows. Let's 
 **Best for:** Long-term use, always available
 
 **Platforms:**
-- **Render** (Recommended)
-- **Railway**
+- **Railway** (Recommended)
 - **Heroku**
 - **PythonAnywhere**
 
 **Pros:**
-- ✅ Permanent URL (`https://black-ice-alert.onrender.com`)
+- ✅ Permanent URL (e.g. `https://web-production-XXXX.up.railway.app`)
 - ✅ Always online (no computer needed)
 - ✅ Free tier available
 - ✅ Database included
@@ -318,23 +317,23 @@ Expand-Archive -Path "ngrok.zip" -DestinationPath "." -Force
 
 ## 🌐 Cloud Deployment Guide (Permanent Solution)
 
-### Render (Recommended - Free Tier)
+### Railway (Recommended Now)
 
 **Step 1: Prepare**
 ```powershell
-# Create requirements.txt (already have it)
-# Create render.yaml
+# Ensure Procfile exists with gunicorn eventlet command
+type Procfile
 ```
 
 **Step 2: Deploy**
-1. Push to GitHub
-2. Connect Render to GitHub
-3. Deploy automatically
-4. Get permanent URL: `https://your-app.onrender.com`
+1. Login to Railway and create a new project
+2. Connect GitHub repo `miwith360on/quantum-black-ice`
+3. Railway auto-builds using Nixpacks
+4. Note your generated domain (e.g. `web-production-XXXX.up.railway.app`)
 
-**Step 3: Database**
-- Render provides PostgreSQL (free tier)
-- Or keep SQLite (simpler)
+**Step 3: Environment**
+- Add required API keys (MESOWEST_API_TOKEN, GOOGLE_MAPS_API_KEY if used)
+- Confirm WebSocket works (Socket.IO should connect without 500 errors)
 
 ---
 
@@ -405,8 +404,8 @@ I'll help you deploy to cloud so it's:
 
 ### Path 2: Permanent Hosting (Cloud)
 ```powershell
-# I'll help you deploy to Render/Railway
-# Takes 20 minutes
+# I'll help you deploy to Railway
+# Takes ~15 minutes
 # Perfect for all winter
 ```
 
