@@ -125,11 +125,16 @@ def get_current_weather():
     try:
         # Try OpenWeather first (if API key exists)
         weather_data = None
-        try:
-            weather_data = weather_service.get_current_weather(lat, lon)
-        except Exception as e:
-            print(f"⚠️ OpenWeather API failed: {e}, falling back to OpenMeteo")
-            # Fallback to OpenMeteo (no API key needed)
+        openweather_key = os.getenv('OPENWEATHER_API_KEY')
+        
+        if openweather_key and openweather_key != 'your_api_key_here':
+            try:
+                weather_data = weather_service.get_current_weather(lat, lon)
+            except Exception as e:
+                print(f"⚠️ OpenWeather API failed: {e}, falling back to OpenMeteo")
+        
+        # Fallback to OpenMeteo (no API key needed)
+        if not weather_data:
             import requests
             url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
             response = requests.get(url)
