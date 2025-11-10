@@ -1,12 +1,20 @@
 // Mobile PWA - Main JavaScript
 // Quantum Black Ice Detection System - Mobile Version
 
-// Configuration
+// Configuration with overrides
+const __params = new URLSearchParams(window.location.search);
+const __API_OVERRIDE = __params.get('api');
+const __WS_OVERRIDE = __params.get('ws');
+
 const API_BASE = (typeof window !== 'undefined' && window.API_BASE_URL)
     ? window.API_BASE_URL
-    : (window.location.origin.includes('localhost') 
+    : (__API_OVERRIDE || (window.location.origin.includes('localhost') 
         ? 'http://localhost:5000' 
-        : window.location.origin);
+        : window.location.origin));
+
+const WS_BASE = (typeof window !== 'undefined' && window.WS_BASE_URL)
+    ? window.WS_BASE_URL
+    : (__WS_OVERRIDE || API_BASE);
 
 // App version for cache detection
 const APP_VERSION = '3.0.1-accuracy-upgrades';
@@ -225,7 +233,7 @@ function initializeWebSocket() {
         ? ['polling']
         : ['websocket', 'polling'];
     
-    socket = io((typeof window !== 'undefined' && window.WS_BASE_URL) ? window.WS_BASE_URL : API_BASE, {
+    socket = io(WS_BASE, {
         transports: wsTransports,
         reconnection: true,
         reconnectionDelay: 1000,
