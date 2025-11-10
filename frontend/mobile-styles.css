@@ -1,19 +1,21 @@
 /* Mobile PWA Styles - iOS Native Look */
 
 :root {
-    --primary: #007AFF;
-    --primary-dark: #0051D5;
-    --bg-primary: #000000;
-    --bg-secondary: #1C1C1E;
-    --bg-tertiary: #2C2C2E;
-    --text-primary: #FFFFFF;
-    --text-secondary: #98989D;
-    --border: #38383A;
-    --success: #34C759;
-    --warning: #FF9500;
-    --danger: #FF3B30;
-    --info: #64D2FF;
-    
+    /* Modern indigo + cyan palette */
+    --primary: #4F46E5;         /* Indigo 600 */
+    --primary-dark: #3730A3;    /* Indigo 800 */
+    --accent: #06B6D4;          /* Cyan 500 */
+    --bg-primary: #0B1020;      /* Deep space */
+    --bg-secondary: #12172A;    /* Card bg */
+    --bg-tertiary: #1B2140;     /* Elevated bg */
+    --text-primary: #E6EAF3;    /* Near-white */
+    --text-secondary: #9AA3B2;  /* Muted */
+    --border: #2A3458;          /* Subtle border */
+    --success: #10B981;         /* Emerald */
+    --warning: #F59E0B;         /* Amber */
+    --danger: #EF4444;          /* Red */
+    --info: #60A5FA;            /* Blue */
+
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
     --safe-area-left: env(safe-area-inset-left, 0px);
@@ -28,13 +30,16 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    overscroll-behavior: none;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+        background:
+            radial-gradient(1000px 600px at 120% -10%, rgba(79,70,229,0.25), transparent 60%),
+            radial-gradient(800px 500px at -10% -10%, rgba(6,182,212,0.22), transparent 60%),
+            var(--bg-primary);
+        color: var(--text-primary);
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overscroll-behavior: none;
 }
 
 /* Status Bar Spacer */
@@ -57,9 +62,9 @@ body {
     position: sticky;
     top: 0;
     z-index: 1000;
-    background: rgba(28, 28, 30, 0.95);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: linear-gradient(180deg, rgba(15,20,45,0.9), rgba(15,20,45,0.6));
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
     border-bottom: 1px solid var(--border);
     padding: 12px 16px;
 }
@@ -167,11 +172,12 @@ body {
 
 /* Cards */
 .card {
-    background: var(--bg-secondary);
+    background: linear-gradient(180deg, rgba(18,23,42,0.95), rgba(18,23,42,0.85));
     border-radius: 16px;
     padding: 20px;
     margin-bottom: 16px;
     border: 1px solid var(--border);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.25);
 }
 
 .card-title {
@@ -189,7 +195,7 @@ body {
 
 /* Risk Card */
 .risk-card {
-    background: linear-gradient(135deg, var(--bg-secondary) 0%, #1a1a2e 100%);
+    background: linear-gradient(135deg, rgba(31,41,99,0.9) 0%, rgba(17,24,56,0.95) 100%);
 }
 
 .risk-header {
@@ -235,17 +241,18 @@ body {
 }
 
 .risk-circle {
-    width: 180px;
-    height: 180px;
+    width: 220px;
+    height: 220px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-primary));
+    background: radial-gradient(120px 120px at 50% 40%, rgba(255,255,255,0.06), rgba(0,0,0,0) 70%),
+                linear-gradient(135deg, var(--bg-tertiary), var(--bg-primary));
     border: 4px solid var(--border);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     position: relative;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
 }
 
 .risk-circle::before {
@@ -254,11 +261,12 @@ body {
     inset: -4px;
     border-radius: 50%;
     padding: 4px;
-    background: linear-gradient(135deg, var(--success), var(--warning), var(--danger));
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    background: conic-gradient(var(--success) 0 33%, var(--warning) 33% 66%, var(--danger) 66% 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    opacity: 0;
+    opacity: 0.9;
     transition: opacity 0.3s;
 }
 
@@ -628,6 +636,7 @@ body {
 
 .nav-btn.active {
     color: var(--primary);
+    text-shadow: 0 0 18px rgba(79,70,229,0.55);
 }
 
 .nav-btn:active svg {
