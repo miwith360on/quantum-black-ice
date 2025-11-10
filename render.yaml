@@ -1,3 +1,5 @@
+# DEPRECATED: Render deployment removed. This file is retained only for historical reference.
+# Do not use. Prefer Railway (Procfile + railway.toml) for backend and Vercel for frontend.
 services:
   - type: web
     name: quantum-black-ice

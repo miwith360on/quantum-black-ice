@@ -773,12 +773,13 @@ if __name__ == '__main__':
     
     # Production mode: use eventlet worker for WebSocket support
     # Development mode: allow unsafe werkzeug for testing
-    is_production = os.getenv('RENDER') or os.getenv('RAILWAY_ENVIRONMENT')
+    # Treat Railway (and legacy Render flag if still set) as production
+    is_production = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER')
     
     if is_production:
         print("🔧 Production mode: Using eventlet worker for WebSocket (or fallback if started directly)")
-        # Note: On Render we start via gunicorn (see render.yaml). If this file is executed directly
-        # in production, allow_unsafe_werkzeug=True prevents Flask 3.0 RuntimeError and keeps service up.
+    # Note: On Railway we normally start via gunicorn/eventlet (Procfile). If this file is executed directly
+    # in production, allow_unsafe_werkzeug=True prevents Flask 3.0 RuntimeError and keeps service up.
         socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
     else:
         print("🔧 Development mode: Using unsafe Werkzeug (local only)")

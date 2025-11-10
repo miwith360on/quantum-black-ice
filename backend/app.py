@@ -1457,7 +1457,7 @@ if __name__ == '__main__':
     debug = False
     
     # Detect if running on Railway or other cloud platform
-    is_production = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER') or os.getenv('HEROKU')
+    is_production = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('HEROKU')
     
     print(f"🌨️  Quantum Black Ice Detection System starting on port {port}")
     print(f"🤖 AI/ML Model: {'Loaded' if ml_predictor.is_trained else 'Not trained yet'}")

@@ -1,5 +1,5 @@
 // Frontend runtime configuration for API endpoints
-// When hosted on Vercel, point to the Render backend.
+// When hosted on Vercel, point to the Railway backend by default.
 // Change these if your backend domain changes.
 (function(){
   // Allow Vercel env override if present
