@@ -2,9 +2,11 @@
 // Quantum Black Ice Detection System - Mobile Version
 
 // Configuration
-const API_BASE = window.location.origin.includes('localhost') 
-    ? 'http://localhost:5000' 
-    : window.location.origin;
+const API_BASE = (typeof window !== 'undefined' && window.API_BASE_URL)
+    ? window.API_BASE_URL
+    : (window.location.origin.includes('localhost') 
+        ? 'http://localhost:5000' 
+        : window.location.origin);
 
 // App version for cache detection
 const APP_VERSION = '3.0.1-accuracy-upgrades';
@@ -223,7 +225,7 @@ function initializeWebSocket() {
         ? ['polling']
         : ['websocket', 'polling'];
     
-    socket = io(API_BASE, {
+    socket = io((typeof window !== 'undefined' && window.WS_BASE_URL) ? window.WS_BASE_URL : API_BASE, {
         transports: wsTransports,
         reconnection: true,
         reconnectionDelay: 1000,
