@@ -54,6 +54,11 @@
                             <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                         </svg>
                     </button>
+                    <button class="icon-btn" id="theme-btn" aria-label="Toggle theme">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 3a9 9 0 1 0 9 9c0-.5 0-1-.1-1.5A7 7 0 0 1 12 3z"/>
+                        </svg>
+                    </button>
                     <button class="icon-btn" id="settings-btn" aria-label="Settings">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="3"/>
@@ -63,6 +68,12 @@
                 </div>
             </div>
         </header>
+
+        <!-- Env/Debug Badge (auto-populated, hidden by default) -->
+        <div id="env-badge" class="env-badge" style="display:none;">
+            <span class="env-dot"></span>
+            <span id="env-text">Loading…</span>
+        </div>
 
         <!-- Alert Banner -->
         <div class="alert-banner" id="alert-banner" style="display: none;">

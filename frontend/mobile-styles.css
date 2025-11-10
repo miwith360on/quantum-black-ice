@@ -22,6 +22,16 @@
     --safe-area-right: env(safe-area-inset-right, 0px);
 }
 
+/* Light theme overrides */
+.theme-light {
+    --bg-primary: #F7F9FC;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #EEF2F6;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --border: #E2E8F0;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -30,8 +40,8 @@
 }
 
 body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', sans-serif;
-        background:
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+    background:
             radial-gradient(1000px 600px at 120% -10%, rgba(79,70,229,0.25), transparent 60%),
             radial-gradient(800px 500px at -10% -10%, rgba(6,182,212,0.22), transparent 60%),
             var(--bg-primary);
@@ -275,7 +285,7 @@ body {
 .risk-circle.high::before { background: var(--danger); opacity: 1; }
 
 .risk-percentage {
-    font-size: 48px;
+    font-size: 54px;
     font-weight: 700;
     line-height: 1;
     background: linear-gradient(135deg, var(--primary), var(--info));
@@ -638,6 +648,36 @@ body {
     color: var(--primary);
     text-shadow: 0 0 18px rgba(79,70,229,0.55);
 }
+
+/* Risk pulse based on level */
+.risk-circle.low { box-shadow: 0 0 0 0 rgba(16,185,129,0.35); animation: pulseLow 2.4s infinite; }
+.risk-circle.medium { box-shadow: 0 0 0 0 rgba(245,158,11,0.35); animation: pulseMed 2.0s infinite; }
+.risk-circle.high { box-shadow: 0 0 0 0 rgba(239,68,68,0.35); animation: pulseHigh 1.6s infinite; }
+
+@keyframes pulseLow { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.45);} 70% { box-shadow: 0 0 0 20px rgba(16,185,129,0);} 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0);} }
+@keyframes pulseMed { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.45);} 70% { box-shadow: 0 0 0 20px rgba(245,158,11,0);} 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0);} }
+@keyframes pulseHigh { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.45);} 70% { box-shadow: 0 0 0 24px rgba(239,68,68,0);} 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0);} }
+
+/* Env badge */
+.env-badge {
+    position: fixed;
+    right: 10px;
+    bottom: calc(70px + var(--safe-area-bottom));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(17,24,56,0.82);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    z-index: 1200;
+}
+.theme-light .env-badge { background: rgba(255,255,255,0.9); }
+.env-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px var(--success); }
 
 .nav-btn:active svg {
     transform: scale(0.9);

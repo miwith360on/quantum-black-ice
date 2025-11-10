@@ -23,6 +23,26 @@ console.log('🔧 API_BASE configured as:', API_BASE);
 console.log('🌍 Current origin:', window.location.origin);
 console.log('📱 App version:', APP_VERSION);
 
+// Populate environment badge
+try {
+    const badge = document.getElementById('env-badge');
+    if (badge) {
+        const txt = document.getElementById('env-text');
+        txt.textContent = `UI ${APP_VERSION} • API ${(API_BASE.replace('https://','')).split('?')[0]}`;
+        badge.style.display = 'flex';
+    }
+} catch(e) { /* ignore */ }
+
+// Theme toggle
+const themeBtn = document.getElementById('theme-btn');
+if (themeBtn) {
+    themeBtn.addEventListener('click', () => {
+        document.documentElement.classList.toggle('theme-light');
+        const nowLight = document.documentElement.classList.contains('theme-light');
+        console.log('🎨 Theme switched to', nowLight ? 'light' : 'dark');
+    });
+}
+
 // Check if accuracy upgrades are available
 if (typeof getAccuracyUpgrades !== 'function') {
     console.error('❌ CRITICAL: Accuracy upgrade functions missing! Browser cache issue detected.');
