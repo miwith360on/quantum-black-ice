@@ -92,8 +92,8 @@ async function networkFirstStrategy(request, cacheName, timeout = 10000) {
         );
         
         const networkPromise = fetch(request).then(response => {
-            // Cache successful responses
-            if (response.ok) {
+            // Only cache GET requests (POST/PUT/DELETE cannot be cached)
+            if (response.ok && request.method === 'GET') {
                 const responseClone = response.clone();
                 caches.open(cacheName).then(cache => {
                     cache.put(request, responseClone);
@@ -105,7 +105,7 @@ async function networkFirstStrategy(request, cacheName, timeout = 10000) {
         return await Promise.race([networkPromise, timeoutPromise]);
     } catch (error) {
         console.log('[SW] Network request failed, trying cache:', error.message);
-        // Fall back to cache
+        // Fall back to cache (only works for GET requests)
         const cachedResponse = await caches.match(request);
         if (cachedResponse) {
             return cachedResponse;
