@@ -486,12 +486,13 @@ def get_rwis_road_temp():
     """Get real road surface temperature from nearest DOT sensor"""
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
+    radius_miles = request.args.get('radius_miles', type=float, default=25)
     
     if not lat or not lon:
         return jsonify({'error': 'Latitude and longitude required'}), 400
     
     try:
-        road_temp_data = rwis.get_road_temp_estimate(lat, lon)
+        road_temp_data = rwis.get_road_temp_estimate(lat, lon, radius_miles=radius_miles)
         return jsonify({
             'success': True,
             'road_temp_data': road_temp_data,
@@ -506,12 +507,13 @@ def get_rwis_freeze_map():
     """Get freeze status from multiple nearby sensors"""
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
+    radius_miles = request.args.get('radius_miles', type=float, default=50)
     
     if not lat or not lon:
         return jsonify({'error': 'Latitude and longitude required'}), 400
     
     try:
-        freeze_map = rwis.get_regional_freeze_map(lat, lon)
+        freeze_map = rwis.get_regional_freeze_map(lat, lon, radius_miles=radius_miles)
         return jsonify({
             'success': True,
             'freeze_map': freeze_map,

@@ -37,12 +37,24 @@ class RWISService:
         Args:
             lat: Latitude
             lon: Longitude
-            radius_miles: Search radius in miles (default 25)
+            radius_miles: Search radius in miles (default 25, max 50)
             
         Returns:
             List of sensor stations with road surface temps
         """
         try:
+            # Clamp radius to a sensible maximum to avoid huge queries
+            if radius_miles is None:
+                radius_miles = 25
+            try:
+                radius_miles = int(round(float(radius_miles)))
+            except Exception:
+                radius_miles = 25
+            if radius_miles > 50:
+                logger.info(f"Radius {radius_miles}mi too large, clamping to 50mi")
+                radius_miles = 50
+            if radius_miles < 1:
+                radius_miles = 1
             # MesoWest latest observations endpoint
             params = {
                 'token': self.api_token,
@@ -146,7 +158,7 @@ class RWISService:
             return self._celsius_to_fahrenheit(obs['air_temp_set_1']['value'][0])
         return None
     
-    def get_road_temp_estimate(self, lat: float, lon: float) -> Dict:
+    def get_road_temp_estimate(self, lat: float, lon: float, radius_miles: int = 25) -> Dict:
         """
         Get best road temperature estimate for location
         
@@ -163,7 +175,7 @@ class RWISService:
                 'sensor_count': int
             }
         """
-        sensors = self.get_nearby_road_sensors(lat, lon, radius_miles=25)
+        sensors = self.get_nearby_road_sensors(lat, lon, radius_miles=radius_miles)
         
         if not sensors:
             return {
@@ -201,7 +213,7 @@ class RWISService:
             'observation_time': closest['observation_time']
         }
     
-    def get_regional_freeze_map(self, lat: float, lon: float) -> Dict:
+    def get_regional_freeze_map(self, lat: float, lon: float, radius_miles: int = 50) -> Dict:
         """
         Get freeze status from multiple nearby sensors for regional view
         
@@ -214,7 +226,7 @@ class RWISService:
                 'sensors': List[Dict]
             }
         """
-        sensors = self.get_nearby_road_sensors(lat, lon, radius_miles=50)
+        sensors = self.get_nearby_road_sensors(lat, lon, radius_miles=radius_miles)
         
         if not sensors:
             return {
