@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd backend && python quick_start.py",
+    "startCommand": "cd backend && gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT quick_start:app",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
