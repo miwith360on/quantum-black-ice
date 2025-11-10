@@ -17,7 +17,7 @@ const WS_BASE = (typeof window !== 'undefined' && window.WS_BASE_URL)
     : (__WS_OVERRIDE || API_BASE);
 
 // App version for cache detection
-const APP_VERSION = '3.0.1-accuracy-upgrades';
+const APP_VERSION = '3.0.2-missing-cards-fix';
 
 console.log('🔧 API_BASE configured as:', API_BASE);
 console.log('🌍 Current origin:', window.location.origin);
@@ -701,11 +701,17 @@ async function getQFPMPrediction(weatherData) {
             body: JSON.stringify({ weather_data: weatherData })
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.summary) {
-                updateQFPMDisplay({ summary: data.summary });
-            }
+        if (!response.ok) {
+            throw new Error(`QFPM HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('⚛️ QFPM response received:', data);
+        
+        if (data.success && data.summary) {
+            updateQFPMDisplay({ summary: data.summary });
+        } else {
+            console.warn('⚠️ QFPM missing summary:', Object.keys(data));
         }
     } catch (error) {
         console.error('❌ QFPM error:', error);
@@ -763,10 +769,18 @@ function updateComponentBar(name, value) {
 
 // Update QFPM forecast display
 function updateQFPMDisplay(qfpmData) {
-    if (!qfpmData || !qfpmData.summary) return;
+    if (!qfpmData || !qfpmData.summary) {
+        console.warn('⚠️ QFPM display called with missing data:', qfpmData);
+        return;
+    }
     
     const summary = qfpmData.summary;
     const probs = summary.freeze_probability;
+    
+    if (!probs) {
+        console.warn('⚠️ QFPM summary missing freeze_probability:', summary);
+        return;
+    }
     
     // Update 30-min forecast
     updateForecastItem('30', probs['30_min']);
@@ -774,15 +788,18 @@ function updateQFPMDisplay(qfpmData) {
     updateForecastItem('90', probs['90_min']);
     
     // Update alert message
-    document.getElementById('qfpm-alert').textContent = summary.alert_message;
-    document.getElementById('qfpm-alert').style.borderColor = summary.color;
+    document.getElementById('qfpm-alert').textContent = summary.alert_message || '⚛️ Quantum prediction ready';
+    document.getElementById('qfpm-alert').style.borderColor = summary.color || '#667eea';
     
     // Highlight peak risk time
     const peakTime = summary.peak_risk_time;
     document.querySelectorAll('.forecast-item').forEach(item => {
         item.style.borderLeftColor = 'transparent';
     });
-    document.getElementById(`forecast-${peakTime}`).style.borderLeftColor = summary.color;
+    const peakEl = document.getElementById(`forecast-${peakTime}`);
+    if (peakEl) {
+        peakEl.style.borderLeftColor = summary.color || '#667eea';
+    }
     
     console.log(`⚛️ QFPM: Peak risk at ${peakTime} (${summary.risk_level})`);
 }
@@ -895,12 +912,20 @@ async function getRoadTemperature() {
         const response = await fetch(
             `${API_BASE}/api/rwis/road-temp?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius_miles=25`
         );
+
+        if (!response.ok) {
+            throw new Error(`Road temp HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('🌡️ RWIS response received:', data);
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.road_temp) {
-                updateRoadTempDisplay(data.road_temp);
-            }
+        // Backend returns road_temp_data; older frontend expected road_temp. Support both.
+        const roadTempPayload = data.road_temp || data.road_temp_data;
+        if (data.success && roadTempPayload) {
+            updateRoadTempDisplay(roadTempPayload);
+        } else {
+            console.warn('⚠️ Road temp payload missing expected key:', Object.keys(data));
         }
     } catch (error) {
         console.error('❌ Road temp error:', error);
@@ -910,15 +935,42 @@ async function getRoadTemperature() {
 // Precipitation Type
 async function getPrecipitationType() {
     try {
-        const response = await fetch(
+        // Fetch current precip type
+        const typeRes = await fetch(
             `${API_BASE}/api/precipitation/type?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
         );
+        if (!typeRes.ok) throw new Error(`Precip Type HTTP ${typeRes.status}`);
+        const typeData = await typeRes.json();
+        console.log('🌨️ Precipitation type response received:', typeData);
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.precipitation_type) {
-                updatePrecipTypeDisplay(data.precipitation_type);
+        const precipPayload = typeData.precipitation_type || typeData.precipitation;
+
+        // Also fetch next hours forecast for the timeline UI
+        let hourly = [];
+        try {
+            const fcRes = await fetch(
+                `${API_BASE}/api/precipitation/forecast?lat=${currentLocation.lat}&lon=${currentLocation.lng}&hours=3`
+            );
+            if (fcRes.ok) {
+                const fc = await fcRes.json();
+                hourly = Array.isArray(fc.hourly_forecast) ? fc.hourly_forecast : [];
             }
+        } catch (e) {
+            console.warn('⚠️ Precipitation hourly forecast unavailable:', e.message);
+        }
+
+        if (typeData.success && precipPayload) {
+            // Normalize shape to include an array for forecast_next_hour that UI expects
+            const normalized = {
+                ...precipPayload,
+                forecast_next_hour: hourly.map(h => ({
+                    time: h.time,
+                    type: h.precipitation_type
+                }))
+            };
+            updatePrecipTypeDisplay(normalized);
+        } else {
+            console.warn('⚠️ Precipitation type payload missing expected key:', Object.keys(typeData));
         }
     } catch (error) {
         console.error('❌ Precipitation type error:', error);
@@ -1047,7 +1099,10 @@ function updateWetPavementDisplay(precipData) {
 
 // Update Road Temperature Display
 function updateRoadTempDisplay(roadTempData) {
-    if (!roadTempData) return;
+    if (!roadTempData) {
+        console.warn('⚠️ Road temp display called with null data');
+        return;
+    }
     
     const tempValueEl = document.getElementById('road-temp-value');
     const distanceEl = document.getElementById('sensor-distance');
@@ -1056,7 +1111,7 @@ function updateRoadTempDisplay(roadTempData) {
     const diffEl = document.getElementById('temp-difference');
     const messageEl = document.getElementById('road-temp-message');
     
-    if (roadTempData.road_temp_f !== null) {
+    if (roadTempData.road_temp_f !== null && roadTempData.road_temp_f !== undefined) {
         tempValueEl.textContent = `${roadTempData.road_temp_f.toFixed(0)}°F`;
         
         if (roadTempData.road_temp_f <= 32) {
@@ -1069,7 +1124,7 @@ function updateRoadTempDisplay(roadTempData) {
         
         distanceEl.textContent = `${roadTempData.distance_miles.toFixed(1)} mi away`;
         
-        const confidence = roadTempData.confidence.toUpperCase();
+        const confidence = (roadTempData.confidence || 'low').toUpperCase();
         confidenceEl.textContent = confidence;
         
         if (confidence === 'HIGH') {
@@ -1080,7 +1135,7 @@ function updateRoadTempDisplay(roadTempData) {
             confidenceEl.style.background = '#dc2626';
         }
         
-        if (roadTempData.air_temp_f !== null) {
+        if (roadTempData.air_temp_f !== null && roadTempData.air_temp_f !== undefined) {
             airTempEl.textContent = `${roadTempData.air_temp_f.toFixed(0)}°F`;
             const diff = roadTempData.air_temp_f - roadTempData.road_temp_f;
             diffEl.textContent = `${diff >= 0 ? '+' : ''}${diff.toFixed(0)}°F`;
@@ -1097,16 +1152,18 @@ function updateRoadTempDisplay(roadTempData) {
         distanceEl.textContent = 'No sensors nearby';
         confidenceEl.textContent = 'N/A';
         confidenceEl.style.background = '#6b7280';
-        messageEl.textContent = '⚠️ No RWIS sensors within 25 miles - using air temperature';
+        messageEl.textContent = roadTempData.message || '⚠️ No RWIS sensors within 25 miles - using air temperature';
         messageEl.style.color = '#f59e0b';
     }
     
     console.log('🌡️ Road temp updated:', roadTempData.road_temp_f);
 }
 
-// Update Precipitation Type Display
 function updatePrecipTypeDisplay(precipTypeData) {
-    if (!precipTypeData) return;
+    if (!precipTypeData) {
+        console.warn('⚠️ Precipitation display called with null data');
+        return;
+    }
     
     const iconEl = document.getElementById('precip-icon');
     const typeEl = document.getElementById('precip-type');
@@ -1115,7 +1172,7 @@ function updatePrecipTypeDisplay(precipTypeData) {
     const hourlyEl = document.getElementById('precip-hourly');
     const warningEl = document.getElementById('precip-warning');
     
-    const precipType = precipTypeData.current_type;
+    const precipType = precipTypeData.current_type || 'unknown';
     
     // Set icon based on type
     const icons = {
@@ -1131,7 +1188,7 @@ function updatePrecipTypeDisplay(precipTypeData) {
     typeEl.textContent = precipType.replace('_', ' ').toUpperCase();
     
     // Risk level styling
-    const riskLevel = precipTypeData.black_ice_risk.toUpperCase();
+    const riskLevel = (precipTypeData.black_ice_risk || 'low').toUpperCase();
     riskLevelEl.textContent = `${riskLevel} RISK`;
     
     if (riskLevel === 'CRITICAL') {
@@ -1158,21 +1215,23 @@ function updatePrecipTypeDisplay(precipTypeData) {
     }
     
     // Update hourly forecast (show next 3 hours)
-    if (precipTypeData.forecast_next_hour) {
+    if (Array.isArray(precipTypeData.forecast_next_hour) && precipTypeData.forecast_next_hour.length > 0) {
         const hourlyHTML = precipTypeData.forecast_next_hour.slice(0, 3).map(hour => {
-            const time = new Date(hour.time).getHours();
+            const time = hour.time ? new Date(hour.time).getHours() : '--';
             const ampm = time >= 12 ? 'PM' : 'AM';
             const displayTime = (time % 12 || 12) + ampm;
             
             return `
                 <div class="hour-item">
                     <div class="hour-time">${displayTime}</div>
-                    <div class="hour-type">${icons[hour.type] || '❓'} ${hour.type.replace('_', ' ')}</div>
+                    <div class="hour-type">${icons[hour.type] || '❓'} ${(hour.type || 'unknown').replace('_', ' ')}</div>
                 </div>
             `;
         }).join('');
         
         hourlyEl.innerHTML = hourlyHTML;
+    } else {
+        hourlyEl.innerHTML = '<div class="hour-item"><div class="hour-time">N/A</div><div class="hour-type">No forecast available</div></div>';
     }
     
     console.log('🌨️ Precipitation type updated:', precipType);
