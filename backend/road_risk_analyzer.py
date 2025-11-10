@@ -4,12 +4,24 @@ Detects high-risk road features: bridges, overpasses, shaded areas, elevation ch
 """
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
+import ssl
 import logging
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 import math
 
 logger = logging.getLogger(__name__)
+
+
+class SSLAdapter(HTTPAdapter):
+    """Custom adapter to force TLS 1.2+"""
+    def init_poolmanager(self, *args, **kwargs):
+        context = create_urllib3_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        kwargs['ssl_context'] = context
+        return super().init_poolmanager(*args, **kwargs)
 
 
 class RoadRiskAnalyzer:
@@ -19,6 +31,14 @@ class RoadRiskAnalyzer:
         self.overpass_url = "https://overpass-api.de/api/interpreter"
         self.cache = {}
         self.cache_duration = 3600  # Cache results for 1 hour
+        
+        # Create session with TLS 1.2+ and User-Agent
+        self.session = requests.Session()
+        self.session.mount('https://', SSLAdapter())
+        self.session.headers.update({
+            'User-Agent': 'Quantum-Black-Ice-Detection/3.0 (Weather Safety Application)',
+            'Accept': 'application/json'
+        })
         
     def get_high_risk_roads(self, lat: float, lon: float, radius: float = 5000) -> Dict:
         """
@@ -47,7 +67,7 @@ class RoadRiskAnalyzer:
             # Build Overpass QL query
             query = self._build_overpass_query(lat, lon, radius)
             
-            response = requests.post(
+            response = self.session.post(
                 self.overpass_url,
                 data={'data': query},
                 timeout=30

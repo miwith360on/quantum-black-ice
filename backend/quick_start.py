@@ -38,8 +38,8 @@ static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'f
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Initialize SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# Initialize SocketIO with eventlet for production
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', engineio_logger=False, logger=False)
 
 # Initialize quantum services
 quantum_predictor = QuantumBlackIcePredictor()

@@ -5,10 +5,22 @@ Real-time traffic flow, incidents, and congestion analysis
 
 import requests
 import logging
+import ssl
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
 
 logger = logging.getLogger(__name__)
+
+
+class SSLAdapter(HTTPAdapter):
+    """Custom adapter to force TLS 1.2+"""
+    def init_poolmanager(self, *args, **kwargs):
+        context = create_urllib3_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        kwargs['ssl_context'] = context
+        return super().init_poolmanager(*args, **kwargs)
 
 
 class TrafficMonitor:
@@ -19,6 +31,14 @@ class TrafficMonitor:
         self.base_url = "https://maps.googleapis.com/maps/api"
         self.cache = {}
         self.cache_duration = 300  # Cache for 5 minutes
+        
+        # Create session with TLS 1.2+ and User-Agent
+        self.session = requests.Session()
+        self.session.mount('https://', SSLAdapter())
+        self.session.headers.update({
+            'User-Agent': 'Quantum-Black-Ice-Detection/3.0 (Weather Safety Application)',
+            'Accept': 'application/json'
+        })
         
     def get_traffic_conditions(self, lat: float, lon: float, radius: int = 5000) -> Dict:
         """
@@ -94,7 +114,7 @@ class TrafficMonitor:
                 'key': self.api_key
             }
             
-            response = requests.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
             
@@ -298,7 +318,7 @@ class TrafficMonitor:
                 'key': self.api_key
             }
             
-            response = requests.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
             
