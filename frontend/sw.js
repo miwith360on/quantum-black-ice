@@ -1,6 +1,6 @@
 // Service Worker for PWA - Offline Support & Caching
-const CACHE_NAME = 'black-ice-v1.0.0';
-const API_CACHE_NAME = 'black-ice-api-v1';
+const CACHE_NAME = 'black-ice-v1.1.0';
+const API_CACHE_NAME = 'black-ice-api-v1.1';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
