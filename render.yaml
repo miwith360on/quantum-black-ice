@@ -14,7 +14,7 @@ services:
         value: 3.11.0
       - key: RENDER
         value: true
-      - key: MESOWEST_TOKEN
+      - key: MESOWEST_API_TOKEN
         sync: false
       - key: GOOGLE_MAPS_API_KEY
         sync: false
