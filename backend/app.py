@@ -33,6 +33,8 @@ from iot_sensor_network import IoTSensorNetwork
 from accident_predictor import AccidentPredictor
 from bifi_calculator import BlackIceFormationIndex
 from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
+from rwis_service import RWISService
+from precipitation_type_service import PrecipitationTypeService
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -98,6 +100,11 @@ db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
 road_analyzer = RoadRiskAnalyzer()
 traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
+
+# Initialize RWIS and Precipitation services for real-world data
+rwis_service = RWISService()
+precipitation_service = PrecipitationTypeService()
+logger.info("✅ RWIS and Precipitation services initialized")
 
 # Initialize GPS context system with integrated services
 gps_context = GPSContextSystem(road_analyzer, quantum_predictor, openmeteo_service)
@@ -722,6 +729,168 @@ def qfpm_predict():
         })
     except Exception as e:
         logger.error(f"QFPM prediction error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/qfpm/enhanced', methods=['POST'])
+def qfpm_enhanced():
+    """
+    Enhanced QFPM with real-world RWIS road surface temperature data
+    Combines quantum prediction with actual DOT sensor readings
+    """
+    data = request.json
+    
+    if not data or 'weather_data' not in data:
+        return jsonify({'error': 'Weather data required'}), 400
+    
+    # Check if QFPM is available
+    if qfpm_calculator is None:
+        return jsonify({
+            'error': 'QFPM service unavailable',
+            'message': 'Quantum Freeze Probability Matrix failed to initialize.'
+        }), 503
+    
+    try:
+        weather_data = data['weather_data']
+        lat = data.get('lat')
+        lon = data.get('lon')
+        
+        # Get real road surface temps from RWIS sensors
+        real_road_data = None
+        if lat and lon:
+            logger.info(f"🛣️ Fetching real RWIS data for {lat}, {lon}")
+            rwis_sensors = rwis_service.get_nearby_road_sensors(lat, lon, radius_miles=25)
+            
+            if rwis_sensors:
+                # Use closest sensor with valid data
+                real_road_data = rwis_sensors[0]  # Already sorted by distance
+                logger.info(f"✅ Using RWIS sensor: {real_road_data.get('name')} - Road temp: {real_road_data.get('road_temp')}°F")
+        
+        # Get precipitation type for enhanced accuracy
+        precip_data = None
+        if lat and lon:
+            precip_data = precipitation_service.get_precipitation_type(lat, lon)
+            logger.info(f"🌧️ Precipitation: {precip_data.get('current_type')} - Black ice risk: {precip_data.get('black_ice_risk')}")
+        
+        # Use real road temp if available, otherwise use air temp
+        if real_road_data and real_road_data.get('road_temp') is not None:
+            base_temp = real_road_data['road_temp']
+            temp_source = 'rwis_sensor'
+            logger.info(f"✅ Using real road surface temp: {base_temp}°F")
+        else:
+            base_temp = weather_data.get('temperature', 32)
+            temp_source = 'air_temperature'
+            logger.info(f"⚠️ No RWIS data, using air temp: {base_temp}°F")
+        
+        base_humidity = weather_data.get('humidity', 70)
+        base_wind = weather_data.get('wind_speed', 5)
+        surface_type = weather_data.get('surface_type', 'asphalt')
+        
+        # Adjust for precipitation type
+        if precip_data and precip_data.get('current_type') == 'freezing_rain':
+            # Freezing rain = instant black ice risk
+            logger.warning("⚠️ FREEZING RAIN DETECTED - High black ice risk!")
+        
+        # Generate freeze probability matrix with real data
+        freeze_matrix = qfpm_calculator.predict_freeze_matrix(
+            base_temp=base_temp,
+            base_humidity=base_humidity,
+            base_wind=base_wind,
+            surface_types=[surface_type]
+        )
+        
+        # Get risk summary
+        summary = qfpm_calculator.get_freeze_risk_summary(freeze_matrix)
+        
+        # Enhanced response with real-world data
+        response = {
+            'success': True,
+            'matrix': {
+                '30min': freeze_matrix['30min'].tolist(),
+                '60min': freeze_matrix['60min'].tolist(),
+                '90min': freeze_matrix['90min'].tolist(),
+                'surface_types': freeze_matrix['surface_types'],
+                'forecast_windows': freeze_matrix['forecast_windows']
+            },
+            'summary': summary,
+            'timestamp': freeze_matrix['timestamp'],
+            'data_sources': {
+                'temperature_source': temp_source,
+                'rwis_available': real_road_data is not None,
+                'precipitation_data': precip_data is not None
+            }
+        }
+        
+        # Add RWIS sensor info if available
+        if real_road_data:
+            response['rwis_sensor'] = {
+                'name': real_road_data.get('name'),
+                'distance_miles': real_road_data.get('distance_miles'),
+                'road_temp': real_road_data.get('road_temp'),
+                'subsurface_temp': real_road_data.get('subsurface_temp'),
+                'road_condition': real_road_data.get('road_condition')
+            }
+        
+        # Add precipitation info if available
+        if precip_data:
+            response['precipitation'] = {
+                'type': precip_data.get('current_type'),
+                'intensity': precip_data.get('intensity'),
+                'black_ice_risk': precip_data.get('black_ice_risk'),
+                'forecast': precip_data.get('forecast_next_hour')
+            }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"Enhanced QFPM prediction error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== NEW: RWIS & PRECIPITATION ENDPOINTS ====================
+
+@app.route('/api/rwis/road-temp', methods=['GET'])
+def get_rwis_road_temp():
+    """Get real road surface temperature from nearby RWIS sensors"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius_miles = request.args.get('radius_miles', type=int, default=25)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        sensors = rwis_service.get_nearby_road_sensors(lat, lon, radius_miles)
+        
+        return jsonify({
+            'success': True,
+            'count': len(sensors),
+            'sensors': sensors,
+            'source': 'mesowest_rwis'
+        })
+    except Exception as e:
+        logger.error(f"RWIS lookup error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/precipitation/type', methods=['GET'])
+def get_precipitation_type():
+    """Get precipitation type and black ice risk"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        precip_data = precipitation_service.get_precipitation_type(lat, lon)
+        
+        return jsonify({
+            'success': True,
+            **precip_data
+        })
+    except Exception as e:
+        logger.error(f"Precipitation type error: {e}")
         return jsonify({'error': str(e)}), 500
 
 

@@ -768,10 +768,25 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
     const maxRetries = 2;
     
     try {
-        const response = await fetch(`${API_BASE}/api/qfpm/predict`, {
+        // Try enhanced QFPM first (uses real RWIS data if available)
+        const useEnhanced = currentLocation.lat && currentLocation.lng;
+        const endpoint = useEnhanced ? '/api/qfpm/enhanced' : '/api/qfpm/predict';
+        
+        const requestBody = {
+            weather_data: weatherData
+        };
+        
+        // Add location for enhanced QFPM
+        if (useEnhanced) {
+            requestBody.lat = currentLocation.lat;
+            requestBody.lon = currentLocation.lng;
+            console.log('🛣️ Using enhanced QFPM with real RWIS data');
+        }
+        
+        const response = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ weather_data: weatherData }),
+            body: JSON.stringify(requestBody),
             timeout: 10000 // 10 second timeout
         });
         
@@ -791,8 +806,22 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
         const data = await response.json();
         console.log('⚛️ QFPM response received:', data);
         
+        // Log if using real RWIS data
+        if (data.data_sources && data.data_sources.rwis_available) {
+            console.log('✅ Using REAL road surface temp from RWIS sensor!');
+            if (data.rwis_sensor) {
+                console.log(`📍 Sensor: ${data.rwis_sensor.name} (${data.rwis_sensor.distance_miles.toFixed(1)} mi away)`);
+                console.log(`🌡️ Road temp: ${data.rwis_sensor.road_temp}°F`);
+            }
+        }
+        
+        // Log precipitation data
+        if (data.precipitation) {
+            console.log(`🌧️ Precipitation: ${data.precipitation.type} - Risk: ${data.precipitation.black_ice_risk}`);
+        }
+        
         if (data.success && data.summary) {
-            updateQFPMDisplay({ summary: data.summary });
+            updateQFPMDisplay({ summary: data.summary, data_sources: data.data_sources, rwis_sensor: data.rwis_sensor, precipitation: data.precipitation });
             // Clear any previous error messages
             clearQFPMError();
         } else {
