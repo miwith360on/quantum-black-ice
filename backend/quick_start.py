@@ -50,7 +50,14 @@ road_analyzer = RoadRiskAnalyzer()
 traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
 
 # Initialize NEW advanced systems
-qfpm = QuantumFreezeProbabilityMatrix(num_qubits=20)  # 20-qubit QFPM
+try:
+    qfpm = QuantumFreezeProbabilityMatrix(num_qubits=20)  # 20-qubit QFPM
+    print("✅ QFPM initialized: 20 qubits")
+except Exception as e:
+    print(f"⚠️ QFPM initialization failed: {e}")
+    print("⚠️ QFPM will use fallback mode (statistical prediction)")
+    qfpm = None
+
 mesh_network = RoadSafetyMeshNetwork()
 bifi_calc = BlackIceFormationIndex()
 
@@ -62,7 +69,6 @@ overnight_cooling = OvernightCoolingPredictor()  # 2-6 AM freeze prediction
 recent_precip_tracker = RecentPrecipitationTracker()  # Wet pavement detection
 
 print("✅ Quantum predictor initialized: 10 qubits")
-print("✅ QFPM initialized: 20 qubits")
 print("✅ IoT Mesh Network ready")
 print("✅ BIFI Calculator ready")
 print("✅ Road Risk Analyzer ready (OpenStreetMap)")
@@ -297,6 +303,60 @@ def qfpm_predict():
     if not data or 'weather_data' not in data:
         return jsonify({'error': 'Weather data required'}), 400
     
+    # Check if QFPM is available
+    if qfpm is None:
+        # Fallback: Use statistical prediction instead of quantum
+        try:
+            weather_data = data['weather_data']
+            temp = weather_data.get('temperature', 32)
+            humidity = weather_data.get('humidity', 50)
+            wind = weather_data.get('wind_speed', 5)
+            
+            # Simple statistical prediction
+            base_risk = max(0, min(100, (35 - temp) * 10))  # 0-100% based on temp
+            humidity_factor = humidity / 100
+            wind_factor = max(0.5, 1 - (wind / 20))  # Wind reduces ice
+            
+            risk_30 = int(base_risk * 0.7 * humidity_factor * wind_factor)
+            risk_60 = int(base_risk * 0.85 * humidity_factor * wind_factor)
+            risk_90 = int(base_risk * 1.0 * humidity_factor * wind_factor)
+            
+            # Determine risk level
+            max_risk = max(risk_30, risk_60, risk_90)
+            if max_risk > 70:
+                risk_level = 'CRITICAL'
+                color = '#FF0000'
+            elif max_risk > 50:
+                risk_level = 'HIGH'
+                color = '#FF6B00'
+            elif max_risk > 30:
+                risk_level = 'MODERATE'
+                color = '#FFD700'
+            else:
+                risk_level = 'LOW'
+                color = '#00FF00'
+            
+            peak_time = '90min' if risk_90 >= risk_60 and risk_90 >= risk_30 else ('60min' if risk_60 >= risk_30 else '30min')
+            
+            return jsonify({
+                'success': True,
+                'summary': {
+                    'risk_level': risk_level,
+                    'color': color,
+                    'freeze_probability': {
+                        '30_min': risk_30,
+                        '60_min': risk_60,
+                        '90_min': risk_90
+                    },
+                    'peak_risk_time': peak_time,
+                    'alert_message': f'📊 Statistical prediction: {risk_level} risk (QFPM unavailable)'
+                },
+                'method': 'statistical_fallback',
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            return jsonify({'error': f'Fallback prediction failed: {str(e)}'}), 500
+    
     try:
         weather_data = data['weather_data']
         grid_size = data.get('grid_size', 5)
@@ -316,6 +376,7 @@ def qfpm_predict():
                 'forecast_windows': freeze_matrix['forecast_windows']
             },
             'summary': summary,
+            'method': 'quantum',
             'timestamp': freeze_matrix['timestamp']
         })
     except Exception as e:
@@ -455,14 +516,43 @@ def advanced_predict():
         results['bifi'] = bifi_calc.calculate(weather_data)
         results['bifi']['interpretation'] = bifi_calc.get_bifi_interpretation(results['bifi']['bifi_score'])
         
-        # Generate QFPM
-        freeze_matrix = qfpm.predict_freeze_matrix(weather_data)
-        results['qfpm'] = {
-            '30min': freeze_matrix['30min'].tolist(),
-            '60min': freeze_matrix['60min'].tolist(),
-            '90min': freeze_matrix['90min'].tolist(),
-            'summary': qfpm.get_freeze_risk_summary(freeze_matrix)
-        }
+        # Generate QFPM (with fallback if unavailable)
+        if qfpm is not None:
+            freeze_matrix = qfpm.predict_freeze_matrix(weather_data)
+            results['qfpm'] = {
+                '30min': freeze_matrix['30min'].tolist(),
+                '60min': freeze_matrix['60min'].tolist(),
+                '90min': freeze_matrix['90min'].tolist(),
+                'summary': qfpm.get_freeze_risk_summary(freeze_matrix)
+            }
+        else:
+            # Fallback statistical prediction
+            temp = weather_data.get('temperature', 32)
+            humidity = weather_data.get('humidity', 50)
+            wind = weather_data.get('wind_speed', 5)
+            
+            base_risk = max(0, min(100, (35 - temp) * 10))
+            humidity_factor = humidity / 100
+            wind_factor = max(0.5, 1 - (wind / 20))
+            
+            risk_30 = int(base_risk * 0.7 * humidity_factor * wind_factor)
+            risk_60 = int(base_risk * 0.85 * humidity_factor * wind_factor)
+            risk_90 = int(base_risk * 1.0 * humidity_factor * wind_factor)
+            
+            max_risk = max(risk_30, risk_60, risk_90)
+            risk_level = 'CRITICAL' if max_risk > 70 else ('HIGH' if max_risk > 50 else ('MODERATE' if max_risk > 30 else 'LOW'))
+            color = '#FF0000' if max_risk > 70 else ('#FF6B00' if max_risk > 50 else ('#FFD700' if max_risk > 30 else '#00FF00'))
+            peak_time = '90min' if risk_90 >= risk_60 and risk_90 >= risk_30 else ('60min' if risk_60 >= risk_30 else '30min')
+            
+            results['qfpm'] = {
+                'summary': {
+                    'risk_level': risk_level,
+                    'color': color,
+                    'freeze_probability': {'30_min': risk_30, '60_min': risk_60, '90_min': risk_90},
+                    'peak_risk_time': peak_time,
+                    'alert_message': f'📊 Statistical: {risk_level} risk'
+                }
+            }
         
         # Get IoT mesh data if location provided
         if lat and lon:

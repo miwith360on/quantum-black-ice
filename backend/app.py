@@ -83,7 +83,16 @@ ml_road_temp = MLRoadSurfaceTempModel()  # NEW: ML Road Surface Temp Model!
 iot_network = IoTSensorNetwork()  # NEW: IoT Sensor Network!
 accident_predictor = AccidentPredictor()  # NEW: Accident Prediction!
 bifi_calculator = BlackIceFormationIndex()  # BIFI Calculator
-qfpm_calculator = QuantumFreezeProbabilityMatrix()  # Quantum Freeze Probability Matrix
+
+# Initialize QFPM with error handling
+try:
+    qfpm_calculator = QuantumFreezeProbabilityMatrix()  # Quantum Freeze Probability Matrix
+    logger.info("✅ QFPM initialized successfully")
+except Exception as e:
+    logger.warning(f"⚠️ QFPM initialization failed: {e}")
+    logger.warning("⚠️ QFPM endpoint will use fallback mode")
+    qfpm_calculator = None
+
 radar_service = RadarService()
 db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
@@ -671,6 +680,13 @@ def qfpm_predict():
     
     if not data or 'weather_data' not in data:
         return jsonify({'error': 'Weather data required'}), 400
+    
+    # Check if QFPM is available
+    if qfpm_calculator is None:
+        return jsonify({
+            'error': 'QFPM service unavailable',
+            'message': 'Quantum Freeze Probability Matrix failed to initialize. Using fallback prediction.'
+        }), 503
     
     try:
         weather_data = data['weather_data']

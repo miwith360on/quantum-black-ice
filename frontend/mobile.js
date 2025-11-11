@@ -421,6 +421,12 @@ function updateLocationText(text) {
 }
 
 function updateWeatherDisplay(data) {
+    // Guard against missing data
+    if (!data) {
+        console.warn('⚠️ updateWeatherDisplay called without data');
+        return;
+    }
+    
     // Update temperature - round to 1 decimal place
     const temp = data.temperature || data.temp;
     const tempText = temp ? Math.round(temp * 10) / 10 : '--';
@@ -771,6 +777,14 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
         
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error');
+            
+            // Handle 503 specifically - service may not be available yet
+            if (response.status === 503) {
+                console.warn('⚠️ QFPM service unavailable (503) - using fallback');
+                showQFPMFallback('Service temporarily unavailable');
+                return; // Don't throw error, just use fallback
+            }
+            
             throw new Error(`QFPM HTTP ${response.status}: ${errorText}`);
         }
         
@@ -786,9 +800,9 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
             showQFPMFallback('Incomplete data received');
         }
     } catch (error) {
-        console.error('❌ QFPM prediction failed:', error);
+        console.error('❌ QFPM error:', error.message);
         
-        // Retry logic for network errors
+        // Retry logic for network errors (not for 503)
         if (retryCount < maxRetries && (error.name === 'TypeError' || error.message.includes('fetch'))) {
             console.log(`🔄 Retrying QFPM prediction (${retryCount + 1}/${maxRetries})...`);
             await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
@@ -1703,7 +1717,8 @@ function setupEventListeners() {
         
         if (currentSettings.autoRefreshEnabled) {
             window.refreshInterval = setInterval(() => {
-                updateWeatherDisplay();
+                // Fetch fresh weather data instead of updating without data
+                fetchWeatherData();
                 updateQuantumPredictions();
                 updateIOTReadings();
                 updateTrafficConditions();
