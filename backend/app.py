@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
+import logging
 from dotenv import load_dotenv
 import asyncio
 import threading
@@ -30,6 +31,8 @@ from gps_context_system import GPSContextSystem
 from ml_road_temp_model import MLRoadSurfaceTempModel
 from iot_sensor_network import IoTSensorNetwork
 from accident_predictor import AccidentPredictor
+from bifi_calculator import BlackIceFormationIndex
+from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -41,6 +44,10 @@ except ImportError:
     print("Install with: pip install flask-socketio python-socketio")
 
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Determine if running in production (Railway)
 is_production = os.getenv('RAILWAY_ENVIRONMENT') is not None
@@ -75,6 +82,8 @@ quantum_predictor_v2 = QuantumBlackIcePredictorV2()  # NEW: 20-qubit system!
 ml_road_temp = MLRoadSurfaceTempModel()  # NEW: ML Road Surface Temp Model!
 iot_network = IoTSensorNetwork()  # NEW: IoT Sensor Network!
 accident_predictor = AccidentPredictor()  # NEW: Accident Prediction!
+bifi_calculator = BlackIceFormationIndex()  # BIFI Calculator
+qfpm_calculator = QuantumFreezeProbabilityMatrix()  # Quantum Freeze Probability Matrix
 radar_service = RadarService()
 db = Database()
 route_monitor = RouteMonitor(weather_service, predictor)
@@ -623,6 +632,80 @@ def quantum_compare_versions():
             }
         })
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== BIFI & QFPM ENDPOINTS ====================
+
+@app.route('/api/bifi/calculate', methods=['POST'])
+def calculate_bifi():
+    """Calculate Black Ice Formation Index (BIFI)"""
+    data = request.json
+    
+    if not data or 'weather_data' not in data:
+        return jsonify({'error': 'Weather data required'}), 400
+    
+    try:
+        weather_data = data['weather_data']
+        
+        # Calculate BIFI
+        bifi_result = bifi_calculator.calculate(weather_data)
+        
+        # Generate interpretation
+        interpretation = f"{bifi_result['risk_level']}: {bifi_result['risk_description']}"
+        
+        return jsonify({
+            'success': True,
+            'bifi': bifi_result,
+            'interpretation': interpretation
+        })
+    except Exception as e:
+        logger.error(f"BIFI calculation error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/qfpm/predict', methods=['POST'])
+def qfpm_predict():
+    """Quantum Freeze Probability Matrix prediction"""
+    data = request.json
+    
+    if not data or 'weather_data' not in data:
+        return jsonify({'error': 'Weather data required'}), 400
+    
+    try:
+        weather_data = data['weather_data']
+        
+        # Extract parameters with defaults
+        base_temp = weather_data.get('temperature', 32)
+        base_humidity = weather_data.get('humidity', 70)
+        base_wind = weather_data.get('wind_speed', 5)
+        surface_type = weather_data.get('surface_type', 'asphalt')
+        
+        # Generate freeze probability matrix
+        freeze_matrix = qfpm_calculator.predict_freeze_matrix(
+            base_temp=base_temp,
+            base_humidity=base_humidity,
+            base_wind=base_wind,
+            surface_types=[surface_type]
+        )
+        
+        # Get risk summary
+        summary = qfpm_calculator.get_freeze_risk_summary(freeze_matrix)
+        
+        return jsonify({
+            'success': True,
+            'matrix': {
+                '30min': freeze_matrix['30min'].tolist(),
+                '60min': freeze_matrix['60min'].tolist(),
+                '90min': freeze_matrix['90min'].tolist(),
+                'surface_types': freeze_matrix['surface_types'],
+                'forecast_windows': freeze_matrix['forecast_windows']
+            },
+            'summary': summary,
+            'timestamp': freeze_matrix['timestamp']
+        })
+    except Exception as e:
+        logger.error(f"QFPM prediction error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
