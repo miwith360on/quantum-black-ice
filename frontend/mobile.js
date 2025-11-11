@@ -671,38 +671,107 @@ async function getAdvancedPredictions(weatherData) {
 }
 
 // Fallback: Get BIFI individually
-async function getBIFIPrediction(weatherData) {
+async function getBIFIPrediction(weatherData, retryCount = 0) {
+    const maxRetries = 2;
+    
     try {
         const response = await fetch(`${API_BASE}/api/bifi/calculate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ weather_data: weatherData })
+            body: JSON.stringify({ weather_data: weatherData }),
+            timeout: 10000 // 10 second timeout
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.bifi) {
-                // Add interpretation to bifi object
-                data.bifi.interpretation = data.interpretation;
-                updateBIFIDisplay(data.bifi);
-            }
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`BIFI HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        if (data.success && data.bifi) {
+            // Add interpretation to bifi object
+            data.bifi.interpretation = data.interpretation;
+            updateBIFIDisplay(data.bifi);
+            clearBIFIError();
+        } else {
+            console.warn('⚠️ BIFI missing data:', Object.keys(data));
+            showBIFIFallback('Incomplete data received');
         }
     } catch (error) {
-        console.error('❌ BIFI error:', error);
+        console.error('❌ BIFI prediction failed:', error);
+        
+        // Retry logic for network errors
+        if (retryCount < maxRetries && (error.name === 'TypeError' || error.message.includes('fetch'))) {
+            console.log(`🔄 Retrying BIFI calculation (${retryCount + 1}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+            return getBIFIPrediction(weatherData, retryCount + 1);
+        }
+        
+        // Show fallback UI after retries exhausted
+        showBIFIFallback(error.message);
     }
 }
 
+// Show BIFI fallback UI when calculation fails
+function showBIFIFallback(errorMessage) {
+    const bifiCard = document.querySelector('.bifi-card');
+    const scoreEl = document.getElementById('bifi-score');
+    const levelEl = document.getElementById('bifi-level');
+    const interpretEl = document.getElementById('bifi-interpretation');
+    
+    if (bifiCard) {
+        bifiCard.className = 'card bifi-card bifi-moderate';
+    }
+    
+    // Calculate simple fallback score
+    const temp = currentLocation.weather?.temperature || 32;
+    const humidity = currentLocation.weather?.humidity || 70;
+    
+    let score = 0;
+    if (temp < 28) score += 40;
+    else if (temp < 32) score += 35;
+    else if (temp < 35) score += 25;
+    else if (temp < 40) score += 15;
+    
+    if (humidity > 80) score += 30;
+    else if (humidity > 70) score += 20;
+    else if (humidity > 60) score += 10;
+    
+    score = Math.min(score, 100);
+    
+    if (scoreEl) scoreEl.textContent = Math.round(score);
+    if (levelEl) {
+        const level = score > 60 ? 'HIGH' : score > 40 ? 'MODERATE' : 'LOW';
+        levelEl.textContent = level + ' (Est.)';
+        levelEl.style.color = score > 60 ? '#FF4500' : score > 40 ? '#FFD700' : '#32CD32';
+    }
+    if (interpretEl) {
+        interpretEl.textContent = '⚠️ Using estimated values - Full calculation unavailable';
+    }
+    
+    console.warn('⚠️ Using fallback BIFI estimation:', errorMessage);
+}
+
+// Clear BIFI error state
+function clearBIFIError() {
+    // Error state cleared - normal display active
+}
+
 // Fallback: Get QFPM individually
-async function getQFPMPrediction(weatherData) {
+async function getQFPMPrediction(weatherData, retryCount = 0) {
+    const maxRetries = 2;
+    
     try {
         const response = await fetch(`${API_BASE}/api/qfpm/predict`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ weather_data: weatherData })
+            body: JSON.stringify({ weather_data: weatherData }),
+            timeout: 10000 // 10 second timeout
         });
         
         if (!response.ok) {
-            throw new Error(`QFPM HTTP ${response.status}`);
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`QFPM HTTP ${response.status}: ${errorText}`);
         }
         
         const data = await response.json();
@@ -710,11 +779,66 @@ async function getQFPMPrediction(weatherData) {
         
         if (data.success && data.summary) {
             updateQFPMDisplay({ summary: data.summary });
+            // Clear any previous error messages
+            clearQFPMError();
         } else {
             console.warn('⚠️ QFPM missing summary:', Object.keys(data));
+            showQFPMFallback('Incomplete data received');
         }
     } catch (error) {
-        console.error('❌ QFPM error:', error);
+        console.error('❌ QFPM prediction failed:', error);
+        
+        // Retry logic for network errors
+        if (retryCount < maxRetries && (error.name === 'TypeError' || error.message.includes('fetch'))) {
+            console.log(`🔄 Retrying QFPM prediction (${retryCount + 1}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+            return getQFPMPrediction(weatherData, retryCount + 1);
+        }
+        
+        // Show fallback UI after retries exhausted
+        showQFPMFallback(error.message);
+    }
+}
+
+// Show QFPM fallback UI when prediction fails
+function showQFPMFallback(errorMessage) {
+    const qfpmAlert = document.getElementById('qfpm-alert');
+    if (qfpmAlert) {
+        qfpmAlert.textContent = `⚠️ QFPM unavailable - Using basic forecast`;
+        qfpmAlert.style.borderColor = '#FFA500';
+        qfpmAlert.style.backgroundColor = 'rgba(255, 165, 0, 0.1)';
+    }
+    
+    // Show simplified forecast based on current conditions
+    const temp = currentLocation.weather?.temperature || 32;
+    const humidity = currentLocation.weather?.humidity || 70;
+    
+    // Basic risk estimation
+    let riskProb = 0;
+    if (temp < 32) riskProb = 70;
+    else if (temp < 35) riskProb = 50;
+    else if (temp < 40) riskProb = 30;
+    else riskProb = 10;
+    
+    // Adjust for humidity
+    if (humidity > 80) riskProb += 15;
+    else if (humidity > 70) riskProb += 10;
+    
+    riskProb = Math.min(riskProb, 95);
+    
+    // Update with fallback values
+    updateForecastItem('30', riskProb);
+    updateForecastItem('60', riskProb + 5);
+    updateForecastItem('90', riskProb + 10);
+    
+    console.warn('⚠️ Using fallback QFPM estimation:', errorMessage);
+}
+
+// Clear QFPM error state
+function clearQFPMError() {
+    const qfpmAlert = document.getElementById('qfpm-alert');
+    if (qfpmAlert) {
+        qfpmAlert.style.backgroundColor = '';
     }
 }
 
