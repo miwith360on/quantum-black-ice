@@ -1640,7 +1640,15 @@ let riskForecastChart = null;
 let historicalData = [];
 
 async function fetch24HourRiskForecast() {
-    if (!currentLocation.lat || !currentLocation.lng) return;
+    console.log('📊 Fetching 24-hour forecast...');
+    
+    if (!currentLocation.lat || !currentLocation.lng) {
+        console.warn('⚠️ No location available for forecast');
+        showAlert('⚠️ Please enable location to view forecast', 'warning');
+        return;
+    }
+    
+    showAlert('📊 Loading 24-hour forecast...', 'info');
     
     try {
         const response = await fetch(
@@ -1651,9 +1659,13 @@ async function fetch24HourRiskForecast() {
         if (data.success) {
             display24HourChart(data.hourly_forecast);
             cacheData('forecast_24h', data, 30 * 60 * 1000); // Cache for 30 minutes
+            showAlert('✅ 24-hour forecast loaded!', 'success');
+        } else {
+            throw new Error(data.error || 'Failed to load forecast');
         }
     } catch (error) {
         console.error('❌ 24-hour forecast error:', error);
+        showAlert('❌ Unable to load forecast: ' + error.message, 'error');
     }
 }
 
@@ -1758,13 +1770,23 @@ function getRiskColor(risk) {
 
 // Heatmap Layers (Temperature, Precipitation, Wind)
 async function toggleHeatmapLayer(type) {
+    console.log(`🗺️ Toggling ${type} heatmap`);
+    
     const existingLayer = window[`${type}HeatmapLayer`];
     
     if (existingLayer) {
         map.removeLayer(existingLayer);
         window[`${type}HeatmapLayer`] = null;
+        showAlert(`${type} heatmap hidden`, 'info');
         return;
     }
+    
+    if (!currentLocation.lat || !currentLocation.lng) {
+        showAlert('⚠️ Please enable location to view heatmaps', 'warning');
+        return;
+    }
+    
+    showAlert(`Loading ${type} heatmap...`, 'info');
     
     try {
         const response = await fetch(
@@ -1847,10 +1869,19 @@ let timelapseData = [];
 let timelapseIndex = 0;
 
 async function startTimelapse() {
+    console.log('⏱️ Starting time-lapse');
+    
     if (timelapseInterval) {
         stopTimelapse();
         return;
     }
+    
+    if (!currentLocation.lat || !currentLocation.lng) {
+        showAlert('⚠️ Please enable location to view time-lapse', 'warning');
+        return;
+    }
+    
+    showAlert('⏱️ Loading 6-hour history...', 'info');
     
     // Fetch last 6 hours of data
     try {
@@ -1915,12 +1946,19 @@ let todayData = null;
 let yesterdayData = null;
 
 async function toggleComparisonMode() {
+    console.log('🔄 Toggling comparison mode');
     comparisonMode = !comparisonMode;
     
     if (comparisonMode) {
+        if (!currentLocation.lat || !currentLocation.lng) {
+            showAlert('⚠️ Please enable location to compare data', 'warning');
+            comparisonMode = false;
+            return;
+        }
+        showAlert('📊 Loading comparison data...', 'info');
         await fetchComparisonData();
         displayComparison();
-        showAlert('📊 Comparison mode enabled', 'info');
+        showAlert('✅ Comparison mode enabled', 'success');
     } else {
         hideComparison();
         showAlert('📊 Comparison mode disabled', 'info');
@@ -2248,28 +2286,45 @@ function setupEventListeners() {
     const btnPrecipHeatmap = document.getElementById('btn-precip-heatmap');
     const btnWindHeatmap = document.getElementById('btn-wind-heatmap');
     
+    console.log('🎨 Visualization buttons found:', {
+        chart: !!btnForecastChart,
+        comparison: !!btnComparison,
+        timelapse: !!btnTimelapse,
+        tempHeatmap: !!btnTempHeatmap,
+        precipHeatmap: !!btnPrecipHeatmap,
+        windHeatmap: !!btnWindHeatmap
+    });
+    
     if (btnForecastChart) {
         btnForecastChart.addEventListener('click', () => {
+            console.log('📈 Forecast chart button clicked');
             const chart = document.getElementById('forecast-chart-card');
             if (chart) {
                 chart.remove();
                 btnForecastChart.classList.remove('active');
+                showAlert('📊 Forecast chart hidden', 'info');
             } else {
                 fetch24HourRiskForecast();
                 btnForecastChart.classList.add('active');
             }
         });
+    } else {
+        console.warn('❌ Forecast chart button not found');
     }
     
     if (btnComparison) {
         btnComparison.addEventListener('click', () => {
+            console.log('🔄 Comparison button clicked');
             toggleComparisonMode();
             btnComparison.classList.toggle('active');
         });
+    } else {
+        console.warn('❌ Comparison button not found');
     }
     
     if (btnTimelapse) {
         btnTimelapse.addEventListener('click', () => {
+            console.log('⏱️ Timelapse button clicked');
             if (timelapseInterval) {
                 stopTimelapse();
                 btnTimelapse.classList.remove('active');
@@ -2278,27 +2333,38 @@ function setupEventListeners() {
                 btnTimelapse.classList.add('active');
             }
         });
+    } else {
+        console.warn('❌ Timelapse button not found');
     }
     
     if (btnTempHeatmap) {
         btnTempHeatmap.addEventListener('click', () => {
+            console.log('🌡️ Temperature heatmap button clicked');
             toggleHeatmapLayer('temperature');
             btnTempHeatmap.classList.toggle('active');
         });
+    } else {
+        console.warn('❌ Temp heatmap button not found');
     }
     
     if (btnPrecipHeatmap) {
         btnPrecipHeatmap.addEventListener('click', () => {
+            console.log('💧 Precipitation heatmap button clicked');
             toggleHeatmapLayer('precipitation');
             btnPrecipHeatmap.classList.toggle('active');
         });
+    } else {
+        console.warn('❌ Precip heatmap button not found');
     }
     
     if (btnWindHeatmap) {
         btnWindHeatmap.addEventListener('click', () => {
+            console.log('💨 Wind heatmap button clicked');
             toggleHeatmapLayer('wind');
             btnWindHeatmap.classList.toggle('active');
         });
+    } else {
+        console.warn('❌ Wind heatmap button not found');
     }
     
     // Settings Modal Management
