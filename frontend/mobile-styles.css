@@ -2241,3 +2241,143 @@ body {
 }
 
 /* ==================== END DATA VISUALIZATIONS ==================== */
+
+/* ==================== VIZ TAB VIEW ==================== */
+
+.viz-view {
+    padding: calc(60px + var(--safe-area-top)) 0 calc(70px + var(--safe-area-bottom)) 0;
+    min-height: 100vh;
+    background: var(--bg-primary);
+}
+
+.viz-view-header {
+    padding: 24px 20px;
+    text-align: center;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(6, 182, 212, 0.1));
+    border-bottom: 1px solid var(--border);
+}
+
+.viz-view-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: var(--text-primary);
+}
+
+.viz-view-header p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.viz-view-content {
+    padding: 16px;
+}
+
+.viz-section {
+    margin-bottom: 16px;
+}
+
+.viz-toggle-btn {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.viz-toggle-btn:hover {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.2), rgba(6, 182, 212, 0.2));
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(79, 70, 229, 0.3);
+}
+
+.viz-toggle-btn.active {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-color: var(--primary);
+    box-shadow: 0 4px 20px rgba(79, 70, 229, 0.4);
+}
+
+.viz-btn-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+}
+
+.viz-btn-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+}
+
+.viz-btn-text {
+    flex: 1;
+    text-align: left;
+}
+
+.viz-btn-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.viz-btn-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.viz-btn-arrow {
+    font-size: 24px;
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+}
+
+.viz-toggle-btn.active .viz-btn-arrow {
+    transform: rotate(90deg);
+}
+
+.viz-content {
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0 0 16px 16px;
+    margin-top: -8px;
+}
+
+.viz-info-box {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    border-radius: 12px;
+    margin-top: 24px;
+}
+
+.viz-info-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.viz-info-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.viz-info-text strong {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.timelapse-controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* ==================== END VIZ TAB VIEW ==================== */

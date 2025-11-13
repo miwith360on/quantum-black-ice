@@ -496,43 +496,6 @@
                 </div>
             </div>
 
-            <!-- Visualization Controls Card -->
-            <div class="card visualization-card">
-                <h2 class="card-title">
-                    <span class="title-icon">📊</span>
-                    Data Visualizations
-                </h2>
-                <div class="viz-controls">
-                    <button class="btn-viz" id="btn-forecast-chart">
-                        <span class="viz-icon">📈</span>
-                        <span class="viz-label">24-Hour Forecast</span>
-                    </button>
-                    <button class="btn-viz" id="btn-comparison">
-                        <span class="viz-icon">🔄</span>
-                        <span class="viz-label">Today vs Yesterday</span>
-                    </button>
-                    <button class="btn-viz" id="btn-timelapse">
-                        <span class="viz-icon">⏱️</span>
-                        <span class="viz-label">Time-lapse (6hrs)</span>
-                    </button>
-                    <button class="btn-viz" id="btn-temp-heatmap">
-                        <span class="viz-icon">🌡️</span>
-                        <span class="viz-label">Temp Heatmap</span>
-                    </button>
-                    <button class="btn-viz" id="btn-precip-heatmap">
-                        <span class="viz-icon">💧</span>
-                        <span class="viz-label">Precip Heatmap</span>
-                    </button>
-                    <button class="btn-viz" id="btn-wind-heatmap">
-                        <span class="viz-icon">💨</span>
-                        <span class="viz-label">Wind Heatmap</span>
-                    </button>
-                </div>
-                <div class="viz-info">
-                    💡 Tip: Tap any visualization to toggle it on/off
-                </div>
-            </div>
-
             <!-- Activity Feed -->
             <div class="card activity-card">
                 <h2 class="card-title">
@@ -549,6 +512,116 @@
 
         </main>
 
+        <!-- Data Visualizations View (Hidden by default) -->
+        <div class="viz-view" id="viz-view" style="display: none;">
+            <div class="viz-view-header">
+                <h1>📊 Data Visualizations</h1>
+                <p>Advanced analytics and visual insights</p>
+            </div>
+            
+            <div class="viz-view-content">
+                <!-- 24-Hour Forecast Chart -->
+                <div class="viz-section">
+                    <button class="viz-toggle-btn" id="viz-toggle-forecast">
+                        <div class="viz-btn-content">
+                            <span class="viz-btn-icon">📈</span>
+                            <div class="viz-btn-text">
+                                <div class="viz-btn-title">24-Hour Forecast</div>
+                                <div class="viz-btn-subtitle">Risk timeline for next 24 hours</div>
+                            </div>
+                            <span class="viz-btn-arrow">›</span>
+                        </div>
+                    </button>
+                    <div class="viz-content" id="viz-content-forecast" style="display: none;"></div>
+                </div>
+
+                <!-- Today vs Yesterday Comparison -->
+                <div class="viz-section">
+                    <button class="viz-toggle-btn" id="viz-toggle-comparison">
+                        <div class="viz-btn-content">
+                            <span class="viz-btn-icon">🔄</span>
+                            <div class="viz-btn-text">
+                                <div class="viz-btn-title">Today vs Yesterday</div>
+                                <div class="viz-btn-subtitle">Compare current conditions</div>
+                            </div>
+                            <span class="viz-btn-arrow">›</span>
+                        </div>
+                    </button>
+                    <div class="viz-content" id="viz-content-comparison" style="display: none;"></div>
+                </div>
+
+                <!-- Time-lapse Replay -->
+                <div class="viz-section">
+                    <button class="viz-toggle-btn" id="viz-toggle-timelapse">
+                        <div class="viz-btn-content">
+                            <span class="viz-btn-icon">⏱️</span>
+                            <div class="viz-btn-text">
+                                <div class="viz-btn-title">6-Hour Time-lapse</div>
+                                <div class="viz-btn-subtitle">Replay weather evolution</div>
+                            </div>
+                            <span class="viz-btn-arrow">›</span>
+                        </div>
+                    </button>
+                    <div class="viz-content" id="viz-content-timelapse" style="display: none;">
+                        <div class="timelapse-controls">
+                            <button class="btn-secondary" id="timelapse-start">▶️ Start</button>
+                            <button class="btn-secondary" id="timelapse-stop" style="display: none;">⏹️ Stop</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Temperature Heatmap -->
+                <div class="viz-section">
+                    <button class="viz-toggle-btn" id="viz-toggle-temp">
+                        <div class="viz-btn-content">
+                            <span class="viz-btn-icon">🌡️</span>
+                            <div class="viz-btn-text">
+                                <div class="viz-btn-title">Temperature Heatmap</div>
+                                <div class="viz-btn-subtitle">View regional temperature patterns</div>
+                            </div>
+                            <span class="viz-btn-arrow">›</span>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Precipitation Heatmap -->
+                <div class="viz-section">
+                    <button class="viz-toggle-btn" id="viz-toggle-precip">
+                        <div class="viz-btn-content">
+                            <span class="viz-btn-icon">💧</span>
+                            <div class="viz-btn-text">
+                                <div class="viz-btn-title">Precipitation Heatmap</div>
+                                <div class="viz-btn-subtitle">View rainfall/snow distribution</div>
+                            </div>
+                            <span class="viz-btn-arrow">›</span>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Wind Heatmap -->
+                <div class="viz-section">
+                    <button class="viz-toggle-btn" id="viz-toggle-wind">
+                        <div class="viz-btn-content">
+                            <span class="viz-btn-icon">💨</span>
+                            <div class="viz-btn-text">
+                                <div class="viz-btn-title">Wind Speed Heatmap</div>
+                                <div class="viz-btn-subtitle">View wind patterns across region</div>
+                            </div>
+                            <span class="viz-btn-arrow">›</span>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="viz-info-box">
+                    <div class="viz-info-icon">💡</div>
+                    <div class="viz-info-text">
+                        <strong>Pro Tip:</strong> Heatmaps appear as overlays on the Map tab. 
+                        Switch to Map view after enabling them to see the visualization.
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Bottom Navigation -->
         <nav class="bottom-nav">
             <button class="nav-btn active" data-view="home">
@@ -559,9 +632,15 @@
             </button>
             <button class="nav-btn" data-view="map">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
+                    <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25-.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
                 </svg>
                 <span>Map</span>
+            </button>
+            <button class="nav-btn" data-view="viz">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+                </svg>
+                <span>Charts</span>
             </button>
             <button class="nav-btn" data-view="alerts">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">

@@ -1669,12 +1669,12 @@ async function fetch24HourRiskForecast() {
     }
 }
 
-function display24HourChart(hourlyData) {
+function display24HourChart(hourlyData, container) {
     // Create or update the chart card
     let chartCard = document.getElementById('forecast-chart-card');
     
     if (!chartCard) {
-        const mainContent = document.querySelector('.main-content');
+        const targetContainer = container || document.querySelector('.main-content');
         chartCard = document.createElement('div');
         chartCard.id = 'forecast-chart-card';
         chartCard.className = 'card forecast-chart-card';
@@ -1687,7 +1687,12 @@ function display24HourChart(hourlyData) {
                 <div class="legend-item"><span class="legend-dot low"></span> Low Risk (<30%)</div>
             </div>
         `;
-        mainContent.insertBefore(chartCard, mainContent.firstChild);
+        
+        if (container) {
+            container.appendChild(chartCard);
+        } else {
+            targetContainer.insertBefore(chartCard, targetContainer.firstChild);
+        }
     }
     
     // Simple canvas drawing (lightweight alternative to Chart.js)
@@ -1985,15 +1990,20 @@ async function fetchComparisonData() {
     }
 }
 
-function displayComparison() {
+function displayComparison(container) {
     let compareCard = document.getElementById('comparison-card');
     
     if (!compareCard) {
-        const mainContent = document.querySelector('.main-content');
+        const targetContainer = container || document.querySelector('.main-content');
         compareCard = document.createElement('div');
         compareCard.id = 'comparison-card';
         compareCard.className = 'card comparison-card';
-        mainContent.insertBefore(compareCard, mainContent.children[1]);
+        
+        if (container) {
+            container.appendChild(compareCard);
+        } else {
+            targetContainer.insertBefore(compareCard, targetContainer.children[1]);
+        }
     }
     
     const tempDiff = todayData.temperature - yesterdayData.temperature;
@@ -2665,6 +2675,112 @@ function setupEventListeners() {
             switchView(view);
         });
     });
+    
+    // Viz tab buttons
+    const vizToggleForecast = document.getElementById('viz-toggle-forecast');
+    const vizToggleComparison = document.getElementById('viz-toggle-comparison');
+    const vizToggleTimelapse = document.getElementById('viz-toggle-timelapse');
+    const vizToggleTemp = document.getElementById('viz-toggle-temp');
+    const vizTogglePrecip = document.getElementById('viz-toggle-precip');
+    const vizToggleWind = document.getElementById('viz-toggle-wind');
+    
+    if (vizToggleForecast) {
+        vizToggleForecast.addEventListener('click', () => {
+            const content = document.getElementById('viz-content-forecast');
+            const isVisible = content.style.display !== 'none';
+            
+            if (isVisible) {
+                content.style.display = 'none';
+                vizToggleForecast.classList.remove('active');
+                // Remove chart if it exists
+                const chart = document.getElementById('forecast-chart-card');
+                if (chart) chart.remove();
+            } else {
+                content.style.display = 'block';
+                vizToggleForecast.classList.add('active');
+                // Create chart in this container
+                fetch24HourRiskForecast(content);
+            }
+        });
+    }
+    
+    if (vizToggleComparison) {
+        vizToggleComparison.addEventListener('click', () => {
+            const content = document.getElementById('viz-content-comparison');
+            const isVisible = content.style.display !== 'none';
+            
+            if (isVisible) {
+                content.style.display = 'none';
+                vizToggleComparison.classList.remove('active');
+                comparisonMode = false;
+                hideComparison();
+            } else {
+                content.style.display = 'block';
+                vizToggleComparison.classList.add('active');
+                comparisonMode = true;
+                fetchComparisonData().then(() => displayComparison(content));
+            }
+        });
+    }
+    
+    if (vizToggleTimelapse) {
+        const startBtn = document.getElementById('timelapse-start');
+        const stopBtn = document.getElementById('timelapse-stop');
+        
+        vizToggleTimelapse.addEventListener('click', () => {
+            const content = document.getElementById('viz-content-timelapse');
+            const isVisible = content.style.display !== 'none';
+            
+            if (isVisible) {
+                content.style.display = 'none';
+                vizToggleTimelapse.classList.remove('active');
+                stopTimelapse();
+            } else {
+                content.style.display = 'block';
+                vizToggleTimelapse.classList.add('active');
+            }
+        });
+        
+        if (startBtn) {
+            startBtn.addEventListener('click', () => {
+                startTimelapse();
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+            });
+        }
+        
+        if (stopBtn) {
+            stopBtn.addEventListener('click', () => {
+                stopTimelapse();
+                stopBtn.style.display = 'none';
+                startBtn.style.display = 'inline-block';
+            });
+        }
+    }
+    
+    if (vizToggleTemp) {
+        vizToggleTemp.addEventListener('click', () => {
+            toggleHeatmapLayer('temperature');
+            vizToggleTemp.classList.toggle('active');
+            showAlert('Switch to Map tab to see temperature heatmap', 'info');
+        });
+    }
+    
+    if (vizTogglePrecip) {
+        vizTogglePrecip.addEventListener('click', () => {
+            toggleHeatmapLayer('precipitation');
+            vizTogglePrecip.classList.toggle('active');
+            showAlert('Switch to Map tab to see precipitation heatmap', 'info');
+        });
+    }
+    
+    if (vizToggleWind) {
+        vizToggleWind.addEventListener('click', () => {
+            toggleHeatmapLayer('wind');
+            vizToggleWind.classList.toggle('active');
+            showAlert('Switch to Map tab to see wind heatmap', 'info');
+        });
+    }
 }
 
 // Fetch radar layers
@@ -2934,13 +3050,28 @@ function switchView(view) {
     });
     document.querySelector(`[data-view="${view}"]`).classList.add('active');
     
-    // Scroll to relevant section
-    if (view === 'map') {
-        document.querySelector('.map-card').scrollIntoView({ behavior: 'smooth' });
-    } else if (view === 'alerts') {
-        document.querySelector('.activity-card').scrollIntoView({ behavior: 'smooth' });
-    } else {
+    // Hide/show views
+    const mainContent = document.querySelector('.main-content');
+    const vizView = document.getElementById('viz-view');
+    
+    if (view === 'viz') {
+        // Show viz view, hide main content
+        mainContent.style.display = 'none';
+        vizView.style.display = 'block';
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        // Show main content, hide viz view
+        mainContent.style.display = 'block';
+        vizView.style.display = 'none';
+        
+        // Scroll to relevant section
+        if (view === 'map') {
+            document.querySelector('.map-card').scrollIntoView({ behavior: 'smooth' });
+        } else if (view === 'alerts') {
+            document.querySelector('.activity-card').scrollIntoView({ behavior: 'smooth' });
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     }
 }
 
