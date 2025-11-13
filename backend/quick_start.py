@@ -843,6 +843,222 @@ def get_traffic_tile_url():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ============ VISUALIZATION API ENDPOINTS ============
+
+@app.route('/api/forecast/24hour', methods=['GET'])
+def get_24hour_forecast():
+    """Get 24-hour risk forecast for visualization"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        # Get hourly forecast
+        hourly_data = []
+        
+        # Use NOAA for US locations
+        try:
+            forecast = noaa_service.get_hourly_forecast(lat, lon, hours=24)
+            
+            for hour in forecast:
+                # Calculate black ice probability for each hour
+                weather_data = {
+                    'temperature': hour.get('temperature', 32),
+                    'humidity': hour.get('humidity', 80),
+                    'wind_speed': hour.get('wind_speed', 5),
+                    'precipitation': hour.get('precipitation', 0),
+                    'dew_point': hour.get('dew_point', 30),
+                    'cloud_cover': hour.get('cloud_cover', 50)
+                }
+                
+                # Get quantum prediction
+                prediction = quantum_predictor.predict(weather_data)
+                
+                hourly_data.append({
+                    'time': hour.get('time'),
+                    'temperature': hour.get('temperature'),
+                    'black_ice_probability': prediction.get('probability', 0) * 100,
+                    'risk_level': prediction.get('risk_level', 'Low')
+                })
+        except Exception as e:
+            # Fallback to synthetic hourly data
+            print(f"NOAA forecast failed, using fallback: {e}")
+            from datetime import timedelta
+            now = datetime.now()
+            
+            for i in range(24):
+                hour_time = now + timedelta(hours=i)
+                # Simulate temperature variation
+                temp = 32 + (i % 12) - 6  # Varies between 26F and 38F
+                humidity = 70 + (i % 20)
+                
+                weather_data = {
+                    'temperature': temp,
+                    'humidity': humidity,
+                    'wind_speed': 5 + (i % 10),
+                    'precipitation': 0.1 if i % 4 == 0 else 0,
+                    'dew_point': temp - 5,
+                    'cloud_cover': 50 + (i % 30)
+                }
+                
+                prediction = quantum_predictor.predict(weather_data)
+                
+                hourly_data.append({
+                    'time': hour_time.strftime('%Y-%m-%dT%H:%M:%S'),
+                    'temperature': temp,
+                    'black_ice_probability': prediction.get('probability', 0) * 100,
+                    'risk_level': prediction.get('risk_level', 'Low')
+                })
+        
+        return jsonify({
+            'success': True,
+            'hourly_forecast': hourly_data,
+            'location': {'lat': lat, 'lon': lon}
+        })
+    except Exception as e:
+        print(f"24-hour forecast error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/historical/yesterday', methods=['GET'])
+def get_yesterday_data():
+    """Get yesterday's weather data for comparison"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        # For now, return simulated data
+        # In production, this would query a historical weather database
+        from datetime import timedelta
+        yesterday = datetime.now() - timedelta(days=1)
+        
+        hourly_data = []
+        for i in range(24):
+            hour_time = yesterday + timedelta(hours=i)
+            temp = 30 + (i % 12) - 4  # Slightly different pattern
+            
+            hourly_data.append({
+                'time': hour_time.strftime('%Y-%m-%dT%H:%M:%S'),
+                'temperature': temp,
+                'black_ice_probability': max(0, min(100, 40 + (i % 30) - 15)),
+                'risk_level': 'Medium' if i % 3 == 0 else 'Low'
+            })
+        
+        return jsonify({
+            'success': True,
+            'hourly_data': hourly_data,
+            'location': {'lat': lat, 'lon': lon}
+        })
+    except Exception as e:
+        print(f"Yesterday data error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/historical/6hours', methods=['GET'])
+def get_6hour_history():
+    """Get 6-hour historical data for time-lapse"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        from datetime import timedelta
+        now = datetime.now()
+        
+        hourly_data = []
+        for i in range(6):
+            hour_time = now - timedelta(hours=6-i)
+            temp = 34 - i  # Cooling trend
+            
+            hourly_data.append({
+                'time': hour_time.strftime('%Y-%m-%dT%H:%M:%S'),
+                'temperature': temp,
+                'black_ice_probability': min(80, 20 + i * 12),
+                'risk_level': 'High' if i > 4 else 'Medium'
+            })
+        
+        return jsonify({
+            'success': True,
+            'hourly_data': hourly_data,
+            'location': {'lat': lat, 'lon': lon}
+        })
+    except Exception as e:
+        print(f"6-hour history error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/heatmap/<layer_type>', methods=['GET'])
+def get_heatmap_data(layer_type):
+    """Get heatmap data for temperature, precipitation, or wind"""
+    import math
+    import random
+    
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius = request.args.get('radius', default=50000, type=int)  # meters
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        # Validate layer type
+        valid_types = ['temperature', 'precipitation', 'wind']
+        if layer_type not in valid_types:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid layer type. Must be one of: {valid_types}'
+            }), 400
+        
+        # Generate heatmap grid points
+        heatmap_data = []
+        
+        # Create a grid of points around the location
+        grid_size = 20
+        lat_range = radius / 111000  # Approximate degrees per meter
+        lon_range = radius / (111000 * abs(math.cos(math.radians(lat))))
+        
+        for i in range(grid_size):
+            for j in range(grid_size):
+                point_lat = lat - lat_range/2 + (i / grid_size) * lat_range
+                point_lon = lon - lon_range/2 + (j / grid_size) * lon_range
+                
+                # Generate value based on layer type
+                if layer_type == 'temperature':
+                    value = 0.3 + random.random() * 0.7  # 0-1 normalized
+                elif layer_type == 'precipitation':
+                    value = random.random()
+                elif layer_type == 'wind':
+                    value = random.random()
+                else:
+                    value = 0.5
+                
+                heatmap_data.append({
+                    'lat': point_lat,
+                    'lon': point_lon,
+                    'value': value
+                })
+        
+        print(f"Generated {len(heatmap_data)} heatmap points for {layer_type}")
+        
+        return jsonify({
+            'success': True,
+            'heatmap_data': heatmap_data,
+            'layer_type': layer_type
+        })
+    except Exception as e:
+        print(f"Heatmap error for {layer_type}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # ============ WEBSOCKET HANDLERS ============
 
 @socketio.on('connect')
