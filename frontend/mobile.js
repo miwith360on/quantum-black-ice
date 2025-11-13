@@ -105,6 +105,16 @@ async function initializeApp() {
     // Start periodic updates
     startPeriodicUpdates();
     
+    // Initialize performance optimizations
+    initBatteryMonitoring();
+    precacheAssets();
+    startBackgroundLocationTracking();
+    
+    // Load 24-hour forecast on startup
+    setTimeout(() => {
+        fetch24HourRiskForecast();
+    }, 2000);
+    
     console.log('✅ App initialized successfully');
 }
 
@@ -1621,6 +1631,604 @@ function toggleSensorsOnMap() {
     }
 }
 
+// ============================================================================
+// NEW DATA VISUALIZATIONS
+// ============================================================================
+
+// 24-Hour Risk Forecast Chart
+let riskForecastChart = null;
+let historicalData = [];
+
+async function fetch24HourRiskForecast() {
+    if (!currentLocation.lat || !currentLocation.lng) return;
+    
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/forecast/24hour?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
+        );
+        const data = await response.json();
+        
+        if (data.success) {
+            display24HourChart(data.hourly_forecast);
+            cacheData('forecast_24h', data, 30 * 60 * 1000); // Cache for 30 minutes
+        }
+    } catch (error) {
+        console.error('❌ 24-hour forecast error:', error);
+    }
+}
+
+function display24HourChart(hourlyData) {
+    // Create or update the chart card
+    let chartCard = document.getElementById('forecast-chart-card');
+    
+    if (!chartCard) {
+        const mainContent = document.querySelector('.main-content');
+        chartCard = document.createElement('div');
+        chartCard.id = 'forecast-chart-card';
+        chartCard.className = 'card forecast-chart-card';
+        chartCard.innerHTML = `
+            <h2 class="card-title">📊 24-Hour Risk Forecast</h2>
+            <canvas id="risk-forecast-canvas"></canvas>
+            <div class="chart-legend">
+                <div class="legend-item"><span class="legend-dot high"></span> High Risk (>60%)</div>
+                <div class="legend-item"><span class="legend-dot medium"></span> Medium Risk (30-60%)</div>
+                <div class="legend-item"><span class="legend-dot low"></span> Low Risk (<30%)</div>
+            </div>
+        `;
+        mainContent.insertBefore(chartCard, mainContent.firstChild);
+    }
+    
+    // Simple canvas drawing (lightweight alternative to Chart.js)
+    const canvas = document.getElementById('risk-forecast-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size
+    canvas.width = canvas.offsetWidth || 300;
+    canvas.height = 200;
+    
+    const width = canvas.width;
+    const height = canvas.height;
+    const padding = 40;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Draw grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    
+    for (let i = 0; i <= 4; i++) {
+        const y = padding + (height - 2 * padding) * i / 4;
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(width - padding, y);
+        ctx.stroke();
+        
+        // Y-axis labels
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = '10px Inter';
+        ctx.fillText(`${100 - i * 25}%`, 5, y + 3);
+    }
+    
+    // Draw risk line
+    ctx.strokeStyle = '#667eea';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    
+    const dataPoints = hourlyData.slice(0, 24);
+    const xStep = (width - 2 * padding) / (dataPoints.length - 1);
+    
+    dataPoints.forEach((point, index) => {
+        const x = padding + index * xStep;
+        const riskValue = point.black_ice_probability || point.risk || 0;
+        const y = height - padding - (riskValue / 100) * (height - 2 * padding);
+        
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+        
+        // Draw point
+        ctx.fillStyle = getRiskColor(riskValue);
+        ctx.fillRect(x - 3, y - 3, 6, 6);
+    });
+    
+    ctx.stroke();
+    
+    // X-axis time labels (every 4 hours)
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '10px Inter';
+    
+    for (let i = 0; i < dataPoints.length; i += 4) {
+        const x = padding + i * xStep;
+        const time = new Date(dataPoints[i].time);
+        const timeStr = time.getHours() + ':00';
+        ctx.fillText(timeStr, x - 15, height - 10);
+    }
+    
+    console.log('📊 24-hour forecast chart rendered');
+}
+
+function getRiskColor(risk) {
+    if (risk > 60) return '#EF4444';
+    if (risk > 30) return '#F59E0B';
+    return '#10B981';
+}
+
+// Heatmap Layers (Temperature, Precipitation, Wind)
+async function toggleHeatmapLayer(type) {
+    const existingLayer = window[`${type}HeatmapLayer`];
+    
+    if (existingLayer) {
+        map.removeLayer(existingLayer);
+        window[`${type}HeatmapLayer`] = null;
+        return;
+    }
+    
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/heatmap/${type}?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius=50000`
+        );
+        const data = await response.json();
+        
+        if (data.success && data.heatmap_data) {
+            displayHeatmap(type, data.heatmap_data);
+        }
+    } catch (error) {
+        console.error(`❌ ${type} heatmap error:`, error);
+        showAlert(`${type} heatmap unavailable`, 'warning');
+    }
+}
+
+function displayHeatmap(type, heatmapData) {
+    // Create canvas overlay for heatmap
+    const bounds = map.getBounds();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.createImageData(512, 512);
+    
+    // Color gradients based on type
+    const gradients = {
+        temperature: [[0, 0, 255], [0, 255, 0], [255, 255, 0], [255, 0, 0]],
+        precipitation: [[255, 255, 255], [0, 150, 255], [0, 50, 200]],
+        wind: [[200, 200, 200], [255, 200, 0], [255, 100, 0], [200, 0, 0]]
+    };
+    
+    // Fill canvas with heatmap data
+    heatmapData.forEach(point => {
+        const x = Math.floor((point.lon - bounds.getWest()) / (bounds.getEast() - bounds.getWest()) * 512);
+        const y = Math.floor((bounds.getNorth() - point.lat) / (bounds.getNorth() - bounds.getSouth()) * 512);
+        
+        if (x >= 0 && x < 512 && y >= 0 && y < 512) {
+            const intensity = point.value;
+            const color = interpolateColor(gradients[type], intensity);
+            const index = (y * 512 + x) * 4;
+            
+            imageData.data[index] = color[0];
+            imageData.data[index + 1] = color[1];
+            imageData.data[index + 2] = color[2];
+            imageData.data[index + 3] = 150; // Alpha
+        }
+    });
+    
+    ctx.putImageData(imageData, 0, 0);
+    
+    // Add as map overlay
+    const imageUrl = canvas.toDataURL();
+    const overlay = L.imageOverlay(imageUrl, bounds, { opacity: 0.5 }).addTo(map);
+    window[`${type}HeatmapLayer`] = overlay;
+    
+    console.log(`🗺️ ${type} heatmap displayed`);
+}
+
+function interpolateColor(gradient, value) {
+    const index = value * (gradient.length - 1);
+    const lower = Math.floor(index);
+    const upper = Math.ceil(index);
+    const t = index - lower;
+    
+    const c1 = gradient[lower] || gradient[0];
+    const c2 = gradient[upper] || gradient[gradient.length - 1];
+    
+    return [
+        Math.round(c1[0] + (c2[0] - c1[0]) * t),
+        Math.round(c1[1] + (c2[1] - c1[1]) * t),
+        Math.round(c1[2] + (c2[2] - c1[2]) * t)
+    ];
+}
+
+// Time-lapse Replay Visualization
+let timelapseInterval = null;
+let timelapseData = [];
+let timelapseIndex = 0;
+
+async function startTimelapse() {
+    if (timelapseInterval) {
+        stopTimelapse();
+        return;
+    }
+    
+    // Fetch last 6 hours of data
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/historical/6hours?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
+        );
+        const data = await response.json();
+        
+        if (data.success) {
+            timelapseData = data.hourly_data;
+            timelapseIndex = 0;
+            
+            showAlert('▶️ Time-lapse started (last 6 hours)', 'info');
+            
+            timelapseInterval = setInterval(() => {
+                if (timelapseIndex >= timelapseData.length) {
+                    stopTimelapse();
+                    return;
+                }
+                
+                const frame = timelapseData[timelapseIndex];
+                displayTimelapseFrame(frame);
+                timelapseIndex++;
+            }, 500); // 0.5 seconds per hour
+        }
+    } catch (error) {
+        console.error('❌ Timelapse error:', error);
+        showAlert('Time-lapse unavailable', 'error');
+    }
+}
+
+function stopTimelapse() {
+    if (timelapseInterval) {
+        clearInterval(timelapseInterval);
+        timelapseInterval = null;
+        showAlert('⏹️ Time-lapse stopped', 'info');
+    }
+}
+
+function displayTimelapseFrame(frame) {
+    // Update display with historical frame
+    document.getElementById('temp-text').textContent = `${frame.temperature}°F`;
+    document.getElementById('humidity-text').textContent = `${frame.humidity}%`;
+    document.getElementById('wind-text').textContent = `${frame.wind_speed} mph`;
+    
+    // Show timestamp overlay
+    let timeOverlay = document.getElementById('timelapse-overlay');
+    if (!timeOverlay) {
+        timeOverlay = document.createElement('div');
+        timeOverlay.id = 'timelapse-overlay';
+        timeOverlay.style.cssText = 'position:fixed;top:100px;right:20px;background:rgba(0,0,0,0.8);color:white;padding:10px 20px;border-radius:8px;font-weight:600;z-index:10000;';
+        document.body.appendChild(timeOverlay);
+    }
+    
+    const time = new Date(frame.timestamp);
+    timeOverlay.textContent = `⏱️ ${time.toLocaleTimeString()}`;
+}
+
+// Comparison Mode (Today vs Yesterday)
+let comparisonMode = false;
+let todayData = null;
+let yesterdayData = null;
+
+async function toggleComparisonMode() {
+    comparisonMode = !comparisonMode;
+    
+    if (comparisonMode) {
+        await fetchComparisonData();
+        displayComparison();
+        showAlert('📊 Comparison mode enabled', 'info');
+    } else {
+        hideComparison();
+        showAlert('📊 Comparison mode disabled', 'info');
+    }
+}
+
+async function fetchComparisonData() {
+    if (!currentLocation.lat || !currentLocation.lng) return;
+    
+    try {
+        // Fetch today's data
+        const todayResponse = await fetch(
+            `${API_BASE}/api/weather/current?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
+        );
+        todayData = await todayResponse.json();
+        
+        // Fetch yesterday's data at same time
+        const yesterdayResponse = await fetch(
+            `${API_BASE}/api/historical/yesterday?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
+        );
+        yesterdayData = await yesterdayResponse.json();
+    } catch (error) {
+        console.error('❌ Comparison data error:', error);
+    }
+}
+
+function displayComparison() {
+    let compareCard = document.getElementById('comparison-card');
+    
+    if (!compareCard) {
+        const mainContent = document.querySelector('.main-content');
+        compareCard = document.createElement('div');
+        compareCard.id = 'comparison-card';
+        compareCard.className = 'card comparison-card';
+        mainContent.insertBefore(compareCard, mainContent.children[1]);
+    }
+    
+    const tempDiff = todayData.temperature - yesterdayData.temperature;
+    const riskDiff = (todayData.black_ice_risk || 0) - (yesterdayData.black_ice_risk || 0);
+    
+    compareCard.innerHTML = `
+        <h2 class="card-title">🔄 Today vs Yesterday</h2>
+        <div class="comparison-grid">
+            <div class="comparison-item">
+                <div class="compare-label">Temperature</div>
+                <div class="compare-today">${todayData.temperature}°F</div>
+                <div class="compare-diff ${tempDiff > 0 ? 'higher' : 'lower'}">
+                    ${tempDiff > 0 ? '↑' : '↓'} ${Math.abs(tempDiff).toFixed(1)}°F
+                </div>
+                <div class="compare-yesterday">${yesterdayData.temperature}°F yesterday</div>
+            </div>
+            <div class="comparison-item">
+                <div class="compare-label">Black Ice Risk</div>
+                <div class="compare-today">${todayData.black_ice_risk || 0}%</div>
+                <div class="compare-diff ${riskDiff > 0 ? 'worse' : 'better'}">
+                    ${riskDiff > 0 ? '↑' : '↓'} ${Math.abs(riskDiff).toFixed(0)}%
+                </div>
+                <div class="compare-yesterday">${yesterdayData.black_ice_risk || 0}% yesterday</div>
+            </div>
+            <div class="comparison-item">
+                <div class="compare-label">Humidity</div>
+                <div class="compare-today">${todayData.humidity}%</div>
+                <div class="compare-yesterday">${yesterdayData.humidity}% yesterday</div>
+            </div>
+        </div>
+    `;
+    
+    console.log('📊 Comparison display updated');
+}
+
+function hideComparison() {
+    const compareCard = document.getElementById('comparison-card');
+    if (compareCard) {
+        compareCard.remove();
+    }
+}
+
+// ============================================================================
+// PERFORMANCE OPTIMIZATIONS
+// ============================================================================
+
+// Smart Caching System
+const dataCache = new Map();
+
+function cacheData(key, data, ttl = 5 * 60 * 1000) {
+    dataCache.set(key, {
+        data: data,
+        timestamp: Date.now(),
+        ttl: ttl
+    });
+}
+
+function getCachedData(key) {
+    const cached = dataCache.get(key);
+    
+    if (!cached) return null;
+    
+    const age = Date.now() - cached.timestamp;
+    
+    if (age > cached.ttl) {
+        dataCache.delete(key);
+        return null;
+    }
+    
+    console.log(`💾 Using cached ${key} (${(age / 1000).toFixed(0)}s old)`);
+    return cached.data;
+}
+
+// Battery-Aware Update System
+let batteryLevel = 1.0;
+let isCharging = true;
+
+async function initBatteryMonitoring() {
+    if ('getBattery' in navigator) {
+        try {
+            const battery = await navigator.getBattery();
+            
+            batteryLevel = battery.level;
+            isCharging = battery.charging;
+            
+            battery.addEventListener('levelchange', () => {
+                batteryLevel = battery.level;
+                adjustUpdateFrequency();
+            });
+            
+            battery.addEventListener('chargingchange', () => {
+                isCharging = battery.charging;
+                adjustUpdateFrequency();
+            });
+            
+            console.log(`🔋 Battery: ${(batteryLevel * 100).toFixed(0)}% (${isCharging ? 'charging' : 'discharging'})`);
+        } catch (error) {
+            console.log('⚠️ Battery API not available');
+        }
+    }
+}
+
+function adjustUpdateFrequency() {
+    if (batteryLevel < 0.2 && !isCharging) {
+        // Low battery - reduce updates
+        currentSettings.refreshInterval = 300; // 5 minutes
+        console.log('🔋 Low battery: Reduced update frequency to 5 min');
+        showAlert('⚡ Battery saver mode active', 'info');
+    } else if (batteryLevel < 0.5 && !isCharging) {
+        // Medium battery - moderate updates
+        currentSettings.refreshInterval = 120; // 2 minutes
+        console.log('🔋 Medium battery: Update frequency 2 min');
+    } else {
+        // Good battery or charging - normal updates
+        currentSettings.refreshInterval = 60; // 1 minute
+    }
+    
+    applySettings();
+}
+
+// Lazy Loading for Map Layers
+const layerLoadQueue = [];
+let isLoadingLayers = false;
+
+function queueLayerLoad(layerType, loadFunction) {
+    layerLoadQueue.push({ type: layerType, load: loadFunction });
+    
+    if (!isLoadingLayers) {
+        processLayerQueue();
+    }
+}
+
+async function processLayerQueue() {
+    if (layerLoadQueue.length === 0) {
+        isLoadingLayers = false;
+        return;
+    }
+    
+    isLoadingLayers = true;
+    const layer = layerLoadQueue.shift();
+    
+    console.log(`🗺️ Loading layer: ${layer.type}`);
+    
+    try {
+        await layer.load();
+    } catch (error) {
+        console.error(`❌ Failed to load ${layer.type}:`, error);
+    }
+    
+    // Wait a bit before loading next layer
+    setTimeout(processLayerQueue, 500);
+}
+
+// Image Compression for User Uploads (future feature)
+function compressImage(file, maxWidth = 800, quality = 0.8) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            const img = new Image();
+            
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob((blob) => {
+                    resolve(new File([blob], file.name, {
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                    }));
+                }, 'image/jpeg', quality);
+            };
+            
+            img.src = e.target.result;
+        };
+        
+        reader.readAsDataURL(file);
+    });
+}
+
+// Background Location Updates
+let backgroundLocationWatcher = null;
+
+function startBackgroundLocationTracking() {
+    if (!navigator.geolocation) return;
+    
+    backgroundLocationWatcher = navigator.geolocation.watchPosition(
+        (position) => {
+            const newLat = position.coords.latitude;
+            const newLng = position.coords.longitude;
+            
+            // Only update if moved significantly (>100m)
+            const distance = calculateDistance(
+                currentLocation.lat, currentLocation.lng,
+                newLat, newLng
+            );
+            
+            if (distance > 0.1) { // 100m
+                currentLocation.lat = newLat;
+                currentLocation.lng = newLng;
+                
+                console.log(`📍 Location updated: moved ${(distance * 1000).toFixed(0)}m`);
+                
+                // Update map
+                map.setView([newLat, newLng]);
+                
+                if (userMarker) {
+                    userMarker.setLatLng([newLat, newLng]);
+                }
+                
+                // Fetch new data for location
+                fetchWeatherData();
+            }
+        },
+        (error) => {
+            console.error('Background location error:', error);
+        },
+        {
+            enableHighAccuracy: false, // Save battery
+            timeout: 30000,
+            maximumAge: 300000 // 5 minutes
+        }
+    );
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    
+    return R * c; // Distance in km
+}
+
+// Progressive Web App Caching
+async function precacheAssets() {
+    if ('caches' in window) {
+        try {
+            const cache = await caches.open('black-ice-v1');
+            
+            const assets = [
+                '/mobile.html',
+                '/mobile.js',
+                '/mobile-styles.css',
+                '/icons/icon-192.png',
+                '/icons/icon-512.png'
+            ];
+            
+            await cache.addAll(assets);
+            console.log('✅ Assets pre-cached');
+        } catch (error) {
+            console.error('❌ Pre-cache failed:', error);
+        }
+    }
+}
+
 // Event listeners
 function setupEventListeners() {
     // Refresh button
@@ -1631,6 +2239,67 @@ function setupEventListeners() {
     
     // Toggle sensors button
     document.getElementById('toggle-sensors-btn').addEventListener('click', toggleSensorsOnMap);
+    
+    // Visualization Controls
+    const btnForecastChart = document.getElementById('btn-forecast-chart');
+    const btnComparison = document.getElementById('btn-comparison');
+    const btnTimelapse = document.getElementById('btn-timelapse');
+    const btnTempHeatmap = document.getElementById('btn-temp-heatmap');
+    const btnPrecipHeatmap = document.getElementById('btn-precip-heatmap');
+    const btnWindHeatmap = document.getElementById('btn-wind-heatmap');
+    
+    if (btnForecastChart) {
+        btnForecastChart.addEventListener('click', () => {
+            const chart = document.getElementById('forecast-chart-card');
+            if (chart) {
+                chart.remove();
+                btnForecastChart.classList.remove('active');
+            } else {
+                fetch24HourRiskForecast();
+                btnForecastChart.classList.add('active');
+            }
+        });
+    }
+    
+    if (btnComparison) {
+        btnComparison.addEventListener('click', () => {
+            toggleComparisonMode();
+            btnComparison.classList.toggle('active');
+        });
+    }
+    
+    if (btnTimelapse) {
+        btnTimelapse.addEventListener('click', () => {
+            if (timelapseInterval) {
+                stopTimelapse();
+                btnTimelapse.classList.remove('active');
+            } else {
+                startTimelapse();
+                btnTimelapse.classList.add('active');
+            }
+        });
+    }
+    
+    if (btnTempHeatmap) {
+        btnTempHeatmap.addEventListener('click', () => {
+            toggleHeatmapLayer('temperature');
+            btnTempHeatmap.classList.toggle('active');
+        });
+    }
+    
+    if (btnPrecipHeatmap) {
+        btnPrecipHeatmap.addEventListener('click', () => {
+            toggleHeatmapLayer('precipitation');
+            btnPrecipHeatmap.classList.toggle('active');
+        });
+    }
+    
+    if (btnWindHeatmap) {
+        btnWindHeatmap.addEventListener('click', () => {
+            toggleHeatmapLayer('wind');
+            btnWindHeatmap.classList.toggle('active');
+        });
+    }
     
     // Settings Modal Management
     const settingsModal = document.getElementById('settings-modal');
@@ -1748,17 +2417,68 @@ function setupEventListeners() {
             window.refreshInterval = setInterval(() => {
                 // Fetch fresh weather data instead of updating without data
                 fetchWeatherData();
-                updateQuantumPredictions();
-                updateIOTReadings();
-                updateTrafficConditions();
             }, currentSettings.refreshInterval * 1000);
+        }
+        
+        // Apply map style immediately
+        applyMapStyle(currentSettings.mapStyle);
+        
+        // Apply traffic layer setting
+        if (currentSettings.showTraffic && !trafficLayer) {
+            fetchTrafficLayer();
+        } else if (!currentSettings.showTraffic && trafficLayer) {
+            map.removeLayer(trafficLayer);
+            trafficLayer = null;
+        }
+        
+        // Apply bridge hazards setting
+        if (currentSettings.showBridges && currentLocation.lat) {
+            document.getElementById('road-risk-layer').checked = true;
+            fetchRoadRisks();
+        } else if (!currentSettings.showBridges) {
+            clearRoadRiskMarkers();
         }
         
         // Update displayed temperatures if currently showing
         convertTemperaturesInUI();
+    }
+    
+    // Apply map style function
+    function applyMapStyle(style) {
+        // Remove existing tile layers except user marker
+        map.eachLayer((layer) => {
+            if (layer instanceof L.TileLayer) {
+                map.removeLayer(layer);
+            }
+        });
         
-        // Note: Map style, traffic, and bridge layers would be applied when map is initialized
-        // These settings are used by updateMap() and similar functions
+        // Add new tile layer based on style
+        let tileUrl, options;
+        
+        switch(style) {
+            case 'satellite':
+                tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+                options = { attribution: 'Esri, Maxar, Earthstar Geographics' };
+                break;
+            case 'dark':
+                tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                options = { attribution: 'CartoDB' };
+                break;
+            case 'street':
+            default:
+                tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+                options = { attribution: 'OpenStreetMap' };
+                break;
+        }
+        
+        L.tileLayer(tileUrl, options).addTo(map);
+        
+        // Re-add user marker if it exists
+        if (userMarker) {
+            userMarker.addTo(map);
+        }
+        
+        console.log('✅ Map style changed to:', style);
     }
     
     // Convert all temperatures in the UI based on unit preference

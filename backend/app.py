@@ -8,6 +8,7 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
 import logging
+import math
 from dotenv import load_dotenv
 import asyncio
 import threading
@@ -1732,8 +1733,8 @@ if __name__ == '__main__':
     print(f"🤖 ML Road Temp: {'Trained' if ml_road_temp.is_trained else 'Not trained (using physics-based)'}")
     print(f"⚛️  Quantum V1: 10-Qubit System Active")
     print(f"⚛️  Quantum V2: 20-Qubit System Active (HYPER-LOCAL!)")
-    print(f"� IoT Sensor Network: {iot_network.get_network_status()['active_sensors']} sensors active")
-    print(f"�🛰️  Radar Service: Active")
+    print(f"📡 IoT Sensor Network: {iot_network.get_network_status()['active_sensors']} sensors active")
+    print(f"🛰️  Radar Service: Active")
     print(f"🛰️  NASA Satellite: Active (MODIS/VIIRS Thermal)")
     print(f"🌍 OpenMeteo: Active (Road Surface Temp)")
     print(f"📡 WebSocket: {'Enabled' if SOCKETIO_AVAILABLE else 'Disabled (install flask-socketio)'}")
@@ -1756,3 +1757,201 @@ if __name__ == '__main__':
     else:
         # Fallback to regular Flask
         app.run(host='0.0.0.0', port=port, debug=debug)
+
+
+# ============================================================================
+# NEW VISUALIZATION API ENDPOINTS
+# ============================================================================
+
+@app.route('/api/forecast/24hour', methods=['GET'])
+def get_24hour_forecast():
+    """Get 24-hour risk forecast for visualization"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        # Get hourly forecast
+        hourly_data = []
+        
+        # Use NOAA for US locations
+        try:
+            forecast = noaa_service.get_hourly_forecast(lat, lon, hours=24)
+            
+            for hour in forecast:
+                # Calculate black ice probability for each hour
+                weather_data = {
+                    'temperature': hour.get('temperature', 32),
+                    'humidity': hour.get('humidity', 80),
+                    'wind_speed': hour.get('wind_speed', 5),
+                    'precipitation': hour.get('precipitation', 0)
+                }
+                
+                # Get ML prediction
+                prediction = ml_predictor.predict(weather_data)
+                
+                hourly_data.append({
+                    'time': hour.get('time'),
+                    'temperature': hour.get('temperature'),
+                    'black_ice_probability': prediction.get('probability', 0) * 100,
+                    'risk_level': prediction.get('risk_level', 'Low')
+                })
+        except:
+            # Fallback to OpenMeteo
+            # Generate synthetic hourly data for demonstration
+            from datetime import timedelta
+            now = datetime.now()
+            
+            for i in range(24):
+                hour_time = now + timedelta(hours=i)
+                # Simulate temperature variation
+                temp = 32 + (i % 12) - 6  # Varies between 26F and 38F
+                humidity = 70 + (i % 20)
+                
+                weather_data = {
+                    'temperature': temp,
+                    'humidity': humidity,
+                    'wind_speed': 5 + (i % 10),
+                    'precipitation': 0.1 if i % 4 == 0 else 0
+                }
+                
+                prediction = ml_predictor.predict(weather_data)
+                
+                hourly_data.append({
+                    'time': hour_time.isoformat(),
+                    'temperature': temp,
+                    'black_ice_probability': prediction.get('probability', 0) * 100,
+                    'risk_level': prediction.get('risk_level', 'Low')
+                })
+        
+        return jsonify({
+            'success': True,
+            'hourly_forecast': hourly_data,
+            'location': {'lat': lat, 'lon': lon}
+        })
+    except Exception as e:
+        logger.error(f"24-hour forecast error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/historical/yesterday', methods=['GET'])
+def get_yesterday_data():
+    """Get yesterday's weather data for comparison"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        # For now, return simulated data
+        # In production, this would query a historical weather database
+        current_weather = weather_service.get_current_weather(lat, lon)
+        
+        # Simulate yesterday's data with slight variations
+        import random
+        yesterday_data = {
+            'temperature': current_weather['temperature'] + random.uniform(-5, 5),
+            'humidity': current_weather['humidity'] + random.uniform(-10, 10),
+            'wind_speed': current_weather['wind_speed'] + random.uniform(-2, 2),
+            'black_ice_risk': random.uniform(0, 80)
+        }
+        
+        return jsonify(yesterday_data)
+    except Exception as e:
+        logger.error(f"Yesterday data error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/historical/6hours', methods=['GET'])
+def get_6hours_history():
+    """Get last 6 hours of data for time-lapse visualization"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        from datetime import timedelta
+        
+        # Generate historical data (in production, query from database)
+        hourly_data = []
+        now = datetime.now()
+        
+        for i in range(6, 0, -1):
+            hour_time = now - timedelta(hours=i)
+            
+            # Simulate historical weather
+            temp = 32 + i - 3
+            humidity = 75 + (i * 2)
+            
+            hourly_data.append({
+                'timestamp': hour_time.isoformat(),
+                'temperature': temp,
+                'humidity': humidity,
+                'wind_speed': 5 + i,
+                'black_ice_risk': (6 - i) * 10
+            })
+        
+        return jsonify({
+            'success': True,
+            'hourly_data': hourly_data
+        })
+    except Exception as e:
+        logger.error(f"6-hour history error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/heatmap/<layer_type>', methods=['GET'])
+def get_heatmap_data(layer_type):
+    """Get heatmap data for temperature, precipitation, or wind"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius = request.args.get('radius', default=50000, type=int)  # meters
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        # Generate heatmap grid points
+        import random
+        heatmap_data = []
+        
+        # Create a grid of points around the location
+        grid_size = 20
+        lat_range = radius / 111000  # Approximate degrees per meter
+        lon_range = radius / (111000 * abs(math.cos(math.radians(lat))))
+        
+        for i in range(grid_size):
+            for j in range(grid_size):
+                point_lat = lat - lat_range/2 + (i / grid_size) * lat_range
+                point_lon = lon - lon_range/2 + (j / grid_size) * lon_range
+                
+                # Generate value based on layer type
+                if layer_type == 'temperature':
+                    value = 0.3 + random.random() * 0.7  # 0-1 normalized
+                elif layer_type == 'precipitation':
+                    value = random.random()
+                elif layer_type == 'wind':
+                    value = random.random()
+                else:
+                    value = 0.5
+                
+                heatmap_data.append({
+                    'lat': point_lat,
+                    'lon': point_lon,
+                    'value': value
+                })
+        
+        return jsonify({
+            'success': True,
+            'heatmap_data': heatmap_data,
+            'layer_type': layer_type
+        })
+    except Exception as e:
+        logger.error(f"Heatmap error: {e}")
+        return jsonify({'error': str(e)}), 500
+

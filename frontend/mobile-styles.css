@@ -2014,3 +2014,230 @@ body {
 }
 
 /* ==================== END ACCURACY UPGRADE CARDS ==================== */
+
+/* ==================== DATA VISUALIZATIONS ==================== */
+
+.visualization-card {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.viz-controls {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.btn-viz {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-viz:hover {
+    background: rgba(102, 126, 234, 0.2);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.btn-viz.active {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-color: var(--primary);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.viz-icon {
+    font-size: 24px;
+}
+
+.viz-label {
+    text-align: center;
+    line-height: 1.2;
+}
+
+.viz-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+
+/* Forecast Chart Card */
+.forecast-chart-card {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(6, 182, 212, 0.1));
+    border: 1px solid rgba(79, 70, 229, 0.3);
+}
+
+#risk-forecast-canvas {
+    width: 100%;
+    height: 200px;
+    margin: 16px 0;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.chart-legend {
+    display: flex;
+    justify-content: space-around;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.legend-dot.high {
+    background: #EF4444;
+}
+
+.legend-dot.medium {
+    background: #F59E0B;
+}
+
+.legend-dot.low {
+    background: #10B981;
+}
+
+/* Comparison Card */
+.comparison-card {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(16, 185, 129, 0.1));
+    border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.comparison-item {
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    text-align: center;
+}
+
+.compare-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.compare-today {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 8px 0;
+}
+
+.compare-diff {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 6px;
+    display: inline-block;
+    margin: 6px 0;
+}
+
+.compare-diff.higher,
+.compare-diff.worse {
+    background: rgba(239, 68, 68, 0.2);
+    color: #EF4444;
+}
+
+.compare-diff.lower,
+.compare-diff.better {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10B981;
+}
+
+.compare-yesterday {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+}
+
+/* Time-lapse Overlay */
+#timelapse-overlay {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Heatmap Layers (handled by Leaflet) */
+
+/* Performance Indicators */
+.battery-indicator {
+    position: fixed;
+    top: 60px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.battery-low {
+    background: rgba(239, 68, 68, 0.9);
+}
+
+.battery-charging {
+    background: rgba(16, 185, 129, 0.9);
+}
+
+/* Cache Status Indicator */
+.cache-status {
+    position: fixed;
+    bottom: 80px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    z-index: 9999;
+}
+
+/* ==================== END DATA VISUALIZATIONS ==================== */
