@@ -1798,9 +1798,10 @@ def get_24hour_forecast():
                     'black_ice_probability': prediction.get('probability', 0) * 100,
                     'risk_level': prediction.get('risk_level', 'Low')
                 })
-        except:
+        except Exception as e:
             # Fallback to OpenMeteo
             # Generate synthetic hourly data for demonstration
+            logger.info(f"NOAA forecast failed, using fallback: {e}")
             from datetime import timedelta
             now = datetime.now()
             
@@ -1820,7 +1821,7 @@ def get_24hour_forecast():
                 prediction = ml_predictor.predict(weather_data)
                 
                 hourly_data.append({
-                    'time': hour_time.isoformat(),
+                    'time': hour_time.strftime('%Y-%m-%dT%H:%M:%S'),
                     'temperature': temp,
                     'black_ice_probability': prediction.get('probability', 0) * 100,
                     'risk_level': prediction.get('risk_level', 'Low')
@@ -1916,6 +1917,14 @@ def get_heatmap_data(layer_type):
         return jsonify({'error': 'Latitude and longitude required'}), 400
     
     try:
+        # Validate layer type
+        valid_types = ['temperature', 'precipitation', 'wind']
+        if layer_type not in valid_types:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid layer type. Must be one of: {valid_types}'
+            }), 400
+        
         # Generate heatmap grid points
         import random
         heatmap_data = []
@@ -1946,12 +1955,17 @@ def get_heatmap_data(layer_type):
                     'value': value
                 })
         
+        logger.info(f"Generated {len(heatmap_data)} heatmap points for {layer_type}")
+        
         return jsonify({
             'success': True,
             'heatmap_data': heatmap_data,
             'layer_type': layer_type
         })
     except Exception as e:
-        logger.error(f"Heatmap error: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Heatmap error for {layer_type}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 

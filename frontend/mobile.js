@@ -1841,21 +1841,28 @@ async function fetch24HourRiskForecast() {
     showAlert('📊 Loading 24-hour forecast...', 'info');
     
     try {
-        const response = await fetch(
-            `${API_BASE}/api/forecast/24hour?lat=${currentLocation.lat}&lon=${currentLocation.lng}`
-        );
-        const data = await response.json();
+        const url = `${API_BASE}/api/forecast/24hour?lat=${currentLocation.lat}&lon=${currentLocation.lng}`;
+        console.log('🔗 Fetching:', url);
         
-        if (data.success) {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('📊 Forecast response:', data);
+        
+        if (data.success && data.hourly_forecast && data.hourly_forecast.length > 0) {
             display24HourChart(data.hourly_forecast);
             cacheData('forecast_24h', data, 30 * 60 * 1000); // Cache for 30 minutes
             showAlert('✅ 24-hour forecast loaded!', 'success');
         } else {
-            throw new Error(data.error || 'Failed to load forecast');
+            throw new Error(data.error || 'No forecast data available');
         }
     } catch (error) {
         console.error('❌ 24-hour forecast error:', error);
-        showAlert('❌ Unable to load forecast: ' + error.message, 'error');
+        showAlert(`❌ Unable to load forecast: ${error.message}`, 'error');
     }
 }
 
@@ -1949,9 +1956,14 @@ function display24HourChart(hourlyData, container) {
     
     for (let i = 0; i < dataPoints.length; i += 4) {
         const x = padding + i * xStep;
-        const time = new Date(dataPoints[i].time);
-        const timeStr = time.getHours() + ':00';
-        ctx.fillText(timeStr, x - 15, height - 10);
+        try {
+            const time = new Date(dataPoints[i].time);
+            const timeStr = isNaN(time.getTime()) ? `${i}h` : `${time.getHours()}:00`;
+            ctx.fillText(timeStr, x - 15, height - 10);
+        } catch (e) {
+            console.warn('⚠️ Invalid time format:', dataPoints[i].time);
+            ctx.fillText(`${i}h`, x - 15, height - 10);
+        }
     }
     
     console.log('📊 24-hour forecast chart rendered');
@@ -1984,17 +1996,27 @@ async function toggleHeatmapLayer(type) {
     showAlert(`Loading ${type} heatmap...`, 'info');
     
     try {
-        const response = await fetch(
-            `${API_BASE}/api/heatmap/${type}?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius=50000`
-        );
-        const data = await response.json();
+        const url = `${API_BASE}/api/heatmap/${type}?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius=50000`;
+        console.log('🔗 Fetching heatmap:', url);
         
-        if (data.success && data.heatmap_data) {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log(`🗺️ ${type} heatmap response:`, data);
+        
+        if (data.success && data.heatmap_data && data.heatmap_data.length > 0) {
             displayHeatmap(type, data.heatmap_data);
+            showAlert(`✅ ${type} heatmap loaded!`, 'success');
+        } else {
+            throw new Error(data.error || 'No heatmap data available');
         }
     } catch (error) {
         console.error(`❌ ${type} heatmap error:`, error);
-        showAlert(`${type} heatmap unavailable`, 'warning');
+        showAlert(`❌ ${type} heatmap unavailable: ${error.message}`, 'warning');
     }
 }
 
