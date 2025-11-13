@@ -179,17 +179,44 @@ async function getUserLocation() {
     if (!navigator.geolocation) {
         console.error('Geolocation not supported');
         updateLocationText('Location not available');
+        showManualLocationPrompt();
         return;
     }
     
+    // Check permission status first
+    if (navigator.permissions) {
+        try {
+            const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+            console.log('📍 Geolocation permission:', permissionStatus.state);
+            
+            if (permissionStatus.state === 'denied') {
+                console.warn('⚠️ Location permission denied by user');
+                showAlert('📍 Location access denied. Please enable in browser settings or enter location manually.', 'warning');
+                showManualLocationPrompt();
+                return;
+            }
+        } catch (e) {
+            console.log('⚠️ Permission API not available, proceeding with location request');
+        }
+    }
+    
     updateLocationText('Getting location...');
+    console.log('📍 Requesting location...');
+    
+    // Show helpful message for network access
+    const isLocalIP = window.location.hostname.match(/^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[01])\./);
+    if (isLocalIP) {
+        console.log('💡 Accessing via local IP - some browsers may block geolocation');
+        showAlert('💡 If location prompt doesn\'t appear, try accessing via localhost or use manual entry', 'info');
+    }
     
     navigator.geolocation.getCurrentPosition(
         async (position) => {
             currentLocation.lat = position.coords.latitude;
             currentLocation.lng = position.coords.longitude;
             
-            console.log('📍 Location obtained:', currentLocation);
+            console.log('✅ Location obtained:', currentLocation);
+            showAlert('✅ Location detected successfully!', 'success');
             
             // Update map
             map.setView([currentLocation.lat, currentLocation.lng], 12);
@@ -227,17 +254,155 @@ async function getUserLocation() {
             }
         },
         (error) => {
-            console.error('Location error:', error);
+            console.error('❌ Location error:', error);
+            
+            let errorMessage = 'Unable to get your location. ';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage += 'Permission denied. Please enable location access in your browser settings.';
+                    console.error('📍 User denied location permission');
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage += 'Location information unavailable. Check your device settings.';
+                    console.error('📍 Position unavailable');
+                    break;
+                case error.TIMEOUT:
+                    errorMessage += 'Location request timed out. Trying again...';
+                    console.error('📍 Location timeout');
+                    // Retry once
+                    setTimeout(getUserLocation, 2000);
+                    return;
+                default:
+                    errorMessage += 'Unknown error occurred.';
+            }
+            
             updateLocationText('Location unavailable');
-            showAlert('Unable to get your location. Please enable location services.', 'warning');
+            showAlert(errorMessage, 'error');
+            showManualLocationPrompt();
         },
         {
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: 15000, // Increased timeout
             maximumAge: 300000 // 5 minutes
         }
     );
 }
+
+// Show manual location input
+function showManualLocationPrompt() {
+    const alertBanner = document.getElementById('alert-banner');
+    const alertText = document.getElementById('alert-text');
+    
+    alertText.innerHTML = `
+        📍 <strong>Enter Location Manually:</strong><br>
+        <input type="text" id="manual-location-input" placeholder="City, State or ZIP code" 
+               style="width: 200px; padding: 8px; margin: 8px 0; border-radius: 6px; border: 1px solid #ccc;">
+        <button onclick="searchManualLocation()" 
+                style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px;">
+            Search
+        </button>
+        <button onclick="useDefaultLocation()" 
+                style="padding: 8px 16px; background: var(--text-secondary); color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px;">
+            Use Demo Location
+        </button>
+    `;
+    
+    alertBanner.style.display = 'flex';
+    alertBanner.classList.remove('success', 'error', 'info');
+    alertBanner.classList.add('warning');
+}
+
+// Search manual location
+async function searchManualLocation() {
+    const input = document.getElementById('manual-location-input');
+    const query = input?.value.trim();
+    
+    if (!query) {
+        showAlert('Please enter a location', 'warning');
+        return;
+    }
+    
+    showAlert('🔍 Searching for location...', 'info');
+    
+    try {
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`
+        );
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            currentLocation.lat = parseFloat(data[0].lat);
+            currentLocation.lng = parseFloat(data[0].lon);
+            
+            console.log('✅ Manual location set:', currentLocation);
+            
+            updateLocationText(data[0].display_name.split(',')[0]);
+            map.setView([currentLocation.lat, currentLocation.lng], 12);
+            
+            // Add marker
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            
+            userMarker = L.marker([currentLocation.lat, currentLocation.lng], {
+                icon: L.divIcon({
+                    className: 'user-location-marker',
+                    html: '<div style="background: #10B981; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+                    iconSize: [22, 22]
+                })
+            }).addTo(map);
+            
+            // Fetch weather
+            fetchWeatherData();
+            
+            showAlert('✅ Location set successfully!', 'success');
+            
+            // Close alert after 2 seconds
+            setTimeout(() => {
+                document.getElementById('alert-banner').style.display = 'none';
+            }, 2000);
+        } else {
+            showAlert('❌ Location not found. Try a different search term.', 'error');
+        }
+    } catch (error) {
+        console.error('Manual location search error:', error);
+        showAlert('❌ Search failed. Please try again.', 'error');
+    }
+}
+
+// Use default demo location
+function useDefaultLocation() {
+    currentLocation.lat = 42.3314;
+    currentLocation.lng = -83.0458;
+    
+    updateLocationText('Detroit, MI (Demo)');
+    map.setView([currentLocation.lat, currentLocation.lng], 12);
+    
+    if (userMarker) {
+        map.removeLayer(userMarker);
+    }
+    
+    userMarker = L.marker([currentLocation.lat, currentLocation.lng], {
+        icon: L.divIcon({
+            className: 'user-location-marker',
+            html: '<div style="background: #F59E0B; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+            iconSize: [22, 22]
+        })
+    }).addTo(map);
+    
+    fetchWeatherData();
+    
+    showAlert('✅ Using demo location (Detroit)', 'success');
+    
+    setTimeout(() => {
+        document.getElementById('alert-banner').style.display = 'none';
+    }, 2000);
+}
+
+// Make functions globally accessible
+window.searchManualLocation = searchManualLocation;
+window.useDefaultLocation = useDefaultLocation;
 
 // Reverse geocode to get location name
 async function reverseGeocode(lat, lng) {
