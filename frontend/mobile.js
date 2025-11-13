@@ -90,8 +90,11 @@ async function initializeApp() {
     // Initialize map
     initializeMap();
     
-    // Get user location
-    await getUserLocation();
+    // Show manual location option immediately
+    showManualLocationPrompt();
+    
+    // Try to get user location (will override manual if successful)
+    getUserLocation();
     
     // Initialize WebSocket
     initializeWebSocket();
@@ -110,10 +113,12 @@ async function initializeApp() {
     precacheAssets();
     startBackgroundLocationTracking();
     
-    // Load 24-hour forecast on startup
+    // Load 24-hour forecast on startup (after location is set)
     setTimeout(() => {
-        fetch24HourRiskForecast();
-    }, 2000);
+        if (currentLocation.lat && currentLocation.lng) {
+            fetch24HourRiskForecast();
+        }
+    }, 3000);
     
     console.log('✅ App initialized successfully');
 }
@@ -295,22 +300,42 @@ function showManualLocationPrompt() {
     const alertText = document.getElementById('alert-text');
     
     alertText.innerHTML = `
-        📍 <strong>Enter Location Manually:</strong><br>
-        <input type="text" id="manual-location-input" placeholder="City, State or ZIP code" 
-               style="width: 200px; padding: 8px; margin: 8px 0; border-radius: 6px; border: 1px solid #ccc;">
-        <button onclick="searchManualLocation()" 
-                style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px;">
-            Search
-        </button>
-        <button onclick="useDefaultLocation()" 
-                style="padding: 8px 16px; background: var(--text-secondary); color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px;">
-            Use Demo Location
-        </button>
+        <div style="width: 100%;">
+            <div style="margin-bottom: 12px;">
+                <strong>📍 Set Your Location</strong><br>
+                <span style="font-size: 13px;">Enter your city or ZIP code, or use demo location</span>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <input type="text" id="manual-location-input" placeholder="e.g., New York, 10001" 
+                       style="flex: 1; min-width: 180px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.3); color: white; font-size: 14px;">
+                <button onclick="searchManualLocation()" 
+                        style="padding: 10px 20px; background: linear-gradient(135deg, #4F46E5, #06B6D4); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                    🔍 Search
+                </button>
+                <button onclick="useDefaultLocation()" 
+                        style="padding: 10px 16px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-size: 14px;">
+                    🎯 Demo
+                </button>
+            </div>
+        </div>
     `;
     
     alertBanner.style.display = 'flex';
     alertBanner.classList.remove('success', 'error', 'info');
     alertBanner.classList.add('warning');
+    
+    // Add enter key support
+    setTimeout(() => {
+        const input = document.getElementById('manual-location-input');
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    searchManualLocation();
+                }
+            });
+            input.focus();
+        }
+    }, 100);
 }
 
 // Search manual location
