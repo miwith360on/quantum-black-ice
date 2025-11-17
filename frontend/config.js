@@ -1,15 +1,26 @@
 // Frontend runtime configuration for API endpoints
-// When hosted on Vercel, point to the Railway backend by default.
-// Change these if your backend domain changes.
+// Automatically uses the same domain the frontend is served from
+// This prevents CORS issues when deployed to Railway
 (function(){
-  // Allow Vercel env override if present
-  const vercelBase = window?.process?.env?.VERCEL_PUBLIC_API_BASE;
-  const fallback = "https://web-production-5be55.up.railway.app";
+  // If already set by environment, use that
+  if (window.API_BASE_URL) {
+    return;
+  }
 
-  if (!window.API_BASE_URL) {
-    window.API_BASE_URL = vercelBase || fallback;
+  // Auto-detect: use the same origin as the frontend
+  // This works for Railway, Vercel, localhost, etc.
+  const currentOrigin = window.location.origin;
+  
+  // If on localhost, use localhost backend
+  // Otherwise, use the same domain (Railway serves both frontend and backend)
+  if (currentOrigin.includes('localhost')) {
+    window.API_BASE_URL = 'http://localhost:5000';
+  } else {
+    // Use the same domain - Railway serves backend and frontend together
+    window.API_BASE_URL = currentOrigin;
   }
-  if (!window.WS_BASE_URL) {
-    window.WS_BASE_URL = window.API_BASE_URL;
-  }
+  
+  window.WS_BASE_URL = window.API_BASE_URL;
+  
+  console.log('🔧 Config.js: API_BASE_URL =', window.API_BASE_URL);
 })();
