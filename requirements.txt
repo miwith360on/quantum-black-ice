@@ -3,6 +3,11 @@ flask-cors==4.0.0
 requests==2.31.0
 python-dotenv==1.0.0
 
+# Performance & Optimization
+flask-caching==2.1.0
+flask-limiter==3.5.0
+flask-compress==1.14
+
 # AI/ML Dependencies
 tensorflow==2.20.0
 numpy==2.3.4

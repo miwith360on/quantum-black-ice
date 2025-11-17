@@ -5,6 +5,10 @@ Provides API endpoints for black ice prediction and monitoring
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_caching import Cache
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_compress import Compress
 from datetime import datetime, timedelta
 import os
 import logging
@@ -12,16 +16,15 @@ import math
 from dotenv import load_dotenv
 import asyncio
 import threading
+import requests
 
 from weather_service import WeatherService
 from black_ice_predictor import BlackIcePredictor
 from database import Database
 from route_monitor import RouteMonitor
-from ml_predictor import MLBlackIcePredictor
 from radar_service import RadarService
 from websocket_server import WebSocketManager
 from quantum_predictor import QuantumBlackIcePredictor
-from quantum_predictor_v2 import QuantumBlackIcePredictorV2
 from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
 from road_risk_analyzer import RoadRiskAnalyzer
@@ -29,13 +32,95 @@ from traffic_monitor import TrafficMonitor
 from satellite_service import SatelliteService
 from openmeteo_service import OpenMeteoService
 from gps_context_system import GPSContextSystem
-from ml_road_temp_model import MLRoadSurfaceTempModel
-from iot_sensor_network import IoTSensorNetwork
-from accident_predictor import AccidentPredictor
-from bifi_calculator import BlackIceFormationIndex
-from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
 from rwis_service import RWISService
 from precipitation_type_service import PrecipitationTypeService
+
+# Lazy-loaded services (avoid heavy imports at startup)
+_lazy_services = {}
+
+def get_ml_predictor():
+    """Lazy load ML predictor to avoid TensorFlow import crash"""
+    if 'ml_predictor' not in _lazy_services:
+        try:
+            from ml_predictor import MLBlackIcePredictor
+            _lazy_services['ml_predictor'] = MLBlackIcePredictor()
+            logger.info("✅ ML Predictor loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ ML Predictor unavailable: {e}")
+            _lazy_services['ml_predictor'] = None
+    return _lazy_services['ml_predictor']
+
+def get_quantum_predictor_v2():
+    """Lazy load 20-qubit quantum predictor"""
+    if 'quantum_v2' not in _lazy_services:
+        try:
+            from quantum_predictor_v2 import QuantumBlackIcePredictorV2
+            _lazy_services['quantum_v2'] = QuantumBlackIcePredictorV2()
+            logger.info("✅ Quantum V2 Predictor loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ Quantum V2 unavailable: {e}")
+            _lazy_services['quantum_v2'] = None
+    return _lazy_services['quantum_v2']
+
+def get_ml_road_temp():
+    """Lazy load ML road temperature model"""
+    if 'ml_road_temp' not in _lazy_services:
+        try:
+            from ml_road_temp_model import MLRoadSurfaceTempModel
+            _lazy_services['ml_road_temp'] = MLRoadSurfaceTempModel()
+            logger.info("✅ ML Road Temp loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ ML Road Temp unavailable: {e}")
+            _lazy_services['ml_road_temp'] = None
+    return _lazy_services['ml_road_temp']
+
+def get_iot_network():
+    """Lazy load IoT sensor network"""
+    if 'iot_network' not in _lazy_services:
+        try:
+            from iot_sensor_network import IoTSensorNetwork
+            _lazy_services['iot_network'] = IoTSensorNetwork()
+            logger.info("✅ IoT Network loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ IoT Network unavailable: {e}")
+            _lazy_services['iot_network'] = None
+    return _lazy_services['iot_network']
+
+def get_accident_predictor():
+    """Lazy load accident predictor"""
+    if 'accident_predictor' not in _lazy_services:
+        try:
+            from accident_predictor import AccidentPredictor
+            _lazy_services['accident_predictor'] = AccidentPredictor()
+            logger.info("✅ Accident Predictor loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ Accident Predictor unavailable: {e}")
+            _lazy_services['accident_predictor'] = None
+    return _lazy_services['accident_predictor']
+
+def get_bifi_calculator():
+    """Lazy load BIFI calculator"""
+    if 'bifi' not in _lazy_services:
+        try:
+            from bifi_calculator import BlackIceFormationIndex
+            _lazy_services['bifi'] = BlackIceFormationIndex()
+            logger.info("✅ BIFI Calculator loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ BIFI unavailable: {e}")
+            _lazy_services['bifi'] = None
+    return _lazy_services['bifi']
+
+def get_qfpm_calculator():
+    """Lazy load Quantum Freeze Probability Matrix"""
+    if 'qfpm' not in _lazy_services:
+        try:
+            from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
+            _lazy_services['qfpm'] = QuantumFreezeProbabilityMatrix()
+            logger.info("✅ QFPM loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ QFPM unavailable: {e}")
+            _lazy_services['qfpm'] = None
+    return _lazy_services['qfpm']
 
 # Try to import flask-socketio for WebSocket support
 try:
@@ -64,7 +149,33 @@ else:
 app = Flask(__name__, 
             static_folder=static_folder,
             static_url_path='')
-CORS(app)
+
+# Configure CORS properly
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",  # In production, set to your domain
+        "methods": ["GET", "POST", "PUT", "DELETE"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "max_age": 3600
+    }
+})
+
+# Initialize caching
+cache = Cache(app, config={
+    'CACHE_TYPE': 'simple',
+    'CACHE_DEFAULT_TIMEOUT': 600  # 10 minutes
+})
+
+# Initialize rate limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
+# Initialize compression
+Compress(app)
 
 # Initialize SocketIO for real-time WebSocket streaming
 socketio = None
@@ -72,35 +183,19 @@ if SOCKETIO_AVAILABLE:
     socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
     print("✅ WebSocket server initialized")
 
-# Initialize services
+# Initialize core services only (lightweight startup)
 weather_service = WeatherService(api_key=os.getenv('OPENWEATHER_API_KEY'))
 noaa_service = NOAAWeatherService()
 openmeteo_service = OpenMeteoService()
-satellite_service = SatelliteService()
 weather_calculator = AdvancedWeatherCalculator()
 predictor = BlackIcePredictor()
-ml_predictor = MLBlackIcePredictor()
 quantum_predictor = QuantumBlackIcePredictor()
-quantum_predictor_v2 = QuantumBlackIcePredictorV2()  # NEW: 20-qubit system!
-ml_road_temp = MLRoadSurfaceTempModel()  # NEW: ML Road Surface Temp Model!
-iot_network = IoTSensorNetwork()  # NEW: IoT Sensor Network!
-accident_predictor = AccidentPredictor()  # NEW: Accident Prediction!
-bifi_calculator = BlackIceFormationIndex()  # BIFI Calculator
-
-# Initialize QFPM with error handling
-try:
-    qfpm_calculator = QuantumFreezeProbabilityMatrix()  # Quantum Freeze Probability Matrix
-    logger.info("✅ QFPM initialized successfully")
-except Exception as e:
-    logger.warning(f"⚠️ QFPM initialization failed: {e}")
-    logger.warning("⚠️ QFPM endpoint will use fallback mode")
-    qfpm_calculator = None
-
 radar_service = RadarService()
 db = Database()
-route_monitor = RouteMonitor(weather_service, predictor)
 road_analyzer = RoadRiskAnalyzer()
 traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
+satellite_service = SatelliteService()
+route_monitor = RouteMonitor(weather_service, predictor)
 
 # Initialize RWIS and Precipitation services for real-world data
 rwis_service = RWISService()
@@ -114,6 +209,33 @@ gps_context = GPSContextSystem(road_analyzer, quantum_predictor, openmeteo_servi
 ws_manager = WebSocketManager(socketio)
 if socketio:
     ws_manager.initialize(app, socketio)
+
+# ==================== UTILITY FUNCTIONS ====================
+
+def validate_coordinates(lat, lon):
+    """Validate latitude and longitude bounds"""
+    try:
+        lat = float(lat)
+        lon = float(lon)
+        if not (-90 <= lat <= 90):
+            raise ValueError(f"Latitude must be between -90 and 90, got {lat}")
+        if not (-180 <= lon <= 180):
+            raise ValueError(f"Longitude must be between -180 and 180, got {lon}")
+        return lat, lon
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid coordinates: {str(e)}")
+
+def handle_api_error(error, service_name="API"):
+    """Standard error handler for API calls"""
+    if isinstance(error, requests.Timeout):
+        logger.error(f"{service_name} timeout")
+        return jsonify({'error': f'{service_name} temporarily unavailable'}), 503
+    elif isinstance(error, requests.RequestException):
+        logger.error(f"{service_name} request failed: {error}")
+        return jsonify({'error': f'Unable to fetch {service_name.lower()} data'}), 500
+    else:
+        logger.critical(f"Unexpected {service_name} error: {error}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # Serve frontend files
@@ -132,22 +254,60 @@ def serve_static(path):
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Enhanced health check endpoint with service status"""
+    services = {
+        'database': 'unknown',
+        'noaa_api': 'unknown',
+        'openmeteo_api': 'unknown'
+    }
+    
+    # Check database
+    try:
+        db._get_connection()
+        services['database'] = 'healthy'
+    except:
+        services['database'] = 'degraded'
+    
+    # Check NOAA API
+    try:
+        response = requests.get('https://api.weather.gov', timeout=3)
+        services['noaa_api'] = 'healthy' if response.status_code < 500 else 'degraded'
+    except:
+        services['noaa_api'] = 'degraded'
+    
+    # Check Open-Meteo API
+    try:
+        response = requests.get('https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0&current_weather=true', timeout=3)
+        services['openmeteo_api'] = 'healthy' if response.status_code == 200 else 'degraded'
+    except:
+        services['openmeteo_api'] = 'degraded'
+    
+    overall_status = 'healthy' if all(s == 'healthy' for s in services.values()) else 'degraded'
+    
     return jsonify({
-        'status': 'healthy',
+        'status': overall_status,
         'timestamp': datetime.now().isoformat(),
-        'service': 'Quantum Black Ice Detection System'
+        'service': 'Quantum Black Ice Detection System',
+        'version': '1.0.0',
+        'services': services
     })
 
 
 @app.route('/api/weather/current', methods=['GET'])
+@limiter.limit("30 per minute")
+@cache.cached(timeout=300, query_string=True)
 def get_current_weather():
-    """Get current weather data for a location"""
+    """Get current weather data for a location with caching"""
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
     
     if not lat or not lon:
         return jsonify({'error': 'Latitude and longitude required'}), 400
+    
+    try:
+        lat, lon = validate_coordinates(lat, lon)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     
     try:
         # Get basic weather data
@@ -157,21 +317,29 @@ def get_current_weather():
         try:
             noaa_data = noaa_service.get_current_observations(lat, lon)
             if noaa_data:
-                # NOAA data is more accurate for US locations
                 weather_data.update(noaa_data)
-        except Exception as noaa_error:
-            # NOAA might fail for non-US locations, continue with OpenWeather
+        except requests.RequestException:
+            # NOAA might fail for non-US locations, continue with base data
             pass
         
         # Calculate advanced metrics
         weather_data = weather_calculator.enhance_weather_data(weather_data)
         
         return jsonify(weather_data)
+    except requests.Timeout:
+        logger.error(f"Weather API timeout for {lat},{lon}")
+        return jsonify({'error': 'Weather service temporarily unavailable'}), 503
+    except requests.RequestException as e:
+        logger.error(f"Weather API error: {e}")
+        return jsonify({'error': 'Unable to fetch weather data'}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.critical(f"Unexpected weather error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/weather/alerts', methods=['GET'])
+@limiter.limit("20 per minute")
+@cache.cached(timeout=300, query_string=True)
 def get_weather_alerts():
     """Get NOAA weather alerts for location (US only)"""
     lat = request.args.get('lat', type=float)
@@ -181,10 +349,22 @@ def get_weather_alerts():
         return jsonify({'error': 'Latitude and longitude required'}), 400
     
     try:
+        lat, lon = validate_coordinates(lat, lon)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
+    try:
         alerts = noaa_service.get_weather_alerts(lat, lon)
         return jsonify({'alerts': alerts, 'count': len(alerts)})
+    except requests.Timeout:
+        logger.error(f"NOAA alerts timeout for {lat},{lon}")
+        return jsonify({'error': 'Alert service unavailable', 'alerts': []}), 503
+    except requests.RequestException as e:
+        logger.error(f"NOAA alerts error: {e}")
+        return jsonify({'error': 'Unable to fetch alerts', 'alerts': []}), 200
     except Exception as e:
-        return jsonify({'error': str(e), 'alerts': []}), 200
+        logger.critical(f"Unexpected alerts error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error', 'alerts': []}), 500
 
 
 @app.route('/api/weather/forecast', methods=['GET'])
