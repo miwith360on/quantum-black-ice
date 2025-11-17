@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd backend && gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT app_optimized:app",
+    "startCommand": "cd backend && gunicorn -w 1 --bind 0.0.0.0:$PORT quick_start_no_ws:app",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
