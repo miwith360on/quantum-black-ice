@@ -221,6 +221,9 @@ async function getUserLocation() {
             currentLocation.lng = position.coords.longitude;
             
             console.log('✅ Location obtained:', currentLocation);
+            
+            // Update location text immediately with coordinates
+            updateLocationText(`${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`);
             showAlert('✅ Location detected successfully!', 'success');
             
             // Update map
@@ -239,8 +242,10 @@ async function getUserLocation() {
                 })
             }).addTo(map);
             
-            // Get location name
-            await reverseGeocode(currentLocation.lat, currentLocation.lng);
+            // Get location name (non-blocking)
+            reverseGeocode(currentLocation.lat, currentLocation.lng).catch(err => {
+                console.warn('Reverse geocoding failed, keeping coordinates:', err);
+            });
             
             // Subscribe to WebSocket updates for this location
             if (socket && socket.connected) {
@@ -262,33 +267,54 @@ async function getUserLocation() {
             console.error('❌ Location error:', error);
             
             let errorMessage = 'Unable to get your location. ';
+            let shouldRetry = false;
             
             switch(error.code) {
                 case error.PERMISSION_DENIED:
-                    errorMessage += 'Permission denied. Please enable location access in your browser settings.';
+                    errorMessage += 'Permission denied. Using default location (Detroit, MI).';
                     console.error('📍 User denied location permission');
                     break;
                 case error.POSITION_UNAVAILABLE:
-                    errorMessage += 'Location information unavailable. Check your device settings.';
+                    errorMessage += 'Location unavailable. Using default location (Detroit, MI).';
                     console.error('📍 Position unavailable');
                     break;
                 case error.TIMEOUT:
-                    errorMessage += 'Location request timed out. Trying again...';
+                    errorMessage += 'Location request timed out. Using default location.';
                     console.error('📍 Location timeout');
-                    // Retry once
-                    setTimeout(getUserLocation, 2000);
-                    return;
+                    break;
                 default:
-                    errorMessage += 'Unknown error occurred.';
+                    errorMessage += 'Unknown error. Using default location.';
             }
             
-            updateLocationText('Location unavailable');
-            showAlert(errorMessage, 'error');
+            // Use default location (Detroit, MI) instead of leaving it blank
+            currentLocation.lat = 42.3314;
+            currentLocation.lng = -83.0458;
+            updateLocationText('Detroit, MI (default)');
+            
+            // Update map to default location
+            map.setView([currentLocation.lat, currentLocation.lng], 12);
+            
+            // Add marker for default location
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            userMarker = L.marker([currentLocation.lat, currentLocation.lng], {
+                icon: L.divIcon({
+                    className: 'user-location-marker',
+                    html: '<div style="background: #FF6B6B; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+                    iconSize: [22, 22]
+                })
+            }).addTo(map);
+            
+            showAlert(errorMessage + ' You can manually set your location.', 'warning');
             showManualLocationPrompt();
+            
+            // Fetch weather data for default location
+            fetchWeatherData();
         },
         {
             enableHighAccuracy: true,
-            timeout: 15000, // Increased timeout
+            timeout: 10000, // 10 seconds timeout
             maximumAge: 300000 // 5 minutes
         }
     );
