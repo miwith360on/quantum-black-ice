@@ -84,7 +84,48 @@ print("✅ Advanced weather calculator ready")
 # Serve frontend with cache-busting
 @app.route('/')
 def index():
+    """Serve mobile PWA by default"""
+    response = send_from_directory(static_folder, 'mobile.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/mobile')
+@app.route('/mobile.html')
+def mobile():
+    """Explicitly serve mobile interface"""
+    response = send_from_directory(static_folder, 'mobile.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/desktop')
+@app.route('/index.html')
+def desktop():
+    """Serve desktop interface"""
     response = send_from_directory(static_folder, 'index.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/route-dashboard')
+@app.route('/route-dashboard.html')
+def route_dashboard():
+    """Serve route monitoring dashboard"""
+    response = send_from_directory(static_folder, 'route-dashboard.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/advanced')
+@app.route('/advanced-dashboard.html')
+def advanced_dashboard():
+    """Serve advanced dashboard"""
+    response = send_from_directory(static_folder, 'advanced-dashboard.html')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'

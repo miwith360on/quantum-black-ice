@@ -163,13 +163,41 @@ def validate_coordinates(lat, lon):
 
 @app.route('/')
 def index():
-    """Serve the mobile PWA interface"""
+    """Serve the mobile PWA interface by default"""
     from flask import send_from_directory
     return send_from_directory(static_folder, 'mobile.html')
 
+@app.route('/mobile')
+@app.route('/mobile.html')
+def mobile():
+    """Explicitly serve mobile interface"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, 'mobile.html')
+
+@app.route('/desktop')
+@app.route('/index.html')
+def desktop():
+    """Serve desktop interface"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, 'index.html')
+
+@app.route('/route-dashboard')
+@app.route('/route-dashboard.html')
+def route_dashboard():
+    """Serve route monitoring dashboard"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, 'route-dashboard.html')
+
+@app.route('/advanced')
+@app.route('/advanced-dashboard.html')
+def advanced_dashboard():
+    """Serve advanced dashboard"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, 'advanced-dashboard.html')
+
 @app.route('/<path:path>')
 def serve_static(path):
-    """Serve static files"""
+    """Serve static files (CSS, JS, images, etc.)"""
     from flask import send_from_directory
     return send_from_directory(static_folder, path)
 
