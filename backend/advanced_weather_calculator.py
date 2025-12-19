@@ -57,6 +57,10 @@ class AdvancedWeatherCalculator:
         Returns:
             Wind chill in Fahrenheit
         """
+        # Handle None values
+        if temp_f is None or wind_mph is None:
+            return temp_f if temp_f is not None else 32
+        
         if temp_f > 50 or wind_mph < 3:
             return temp_f
         
@@ -81,6 +85,10 @@ class AdvancedWeatherCalculator:
         Returns:
             Heat index in Fahrenheit
         """
+        # Handle None values
+        if temp_f is None or humidity_percent is None:
+            return temp_f if temp_f is not None else 32
+        
         if temp_f < 80:
             return temp_f
         
@@ -113,6 +121,14 @@ class AdvancedWeatherCalculator:
         Returns:
             Feels-like temperature in Fahrenheit
         """
+        # Handle None values
+        if temp_f is None:
+            return 32
+        if humidity_percent is None:
+            humidity_percent = 50
+        if wind_mph is None:
+            wind_mph = 0
+        
         if temp_f <= 50 and wind_mph >= 3:
             return AdvancedWeatherCalculator.calculate_wind_chill(temp_f, wind_mph)
         elif temp_f >= 80:
@@ -232,10 +248,19 @@ class AdvancedWeatherCalculator:
         Returns:
             Enhanced weather data with calculated fields
         """
-        temp = weather_data.get('temperature', 32)
-        humidity = weather_data.get('humidity', 50)
-        wind = weather_data.get('wind_speed', 0)
-        clouds = weather_data.get('clouds', 50)
+        # Get values with proper None handling and defaults
+        temp = weather_data.get('temperature')
+        if temp is None:
+            temp = 32
+        humidity = weather_data.get('humidity')
+        if humidity is None:
+            humidity = 50
+        wind = weather_data.get('wind_speed')
+        if wind is None:
+            wind = 0
+        clouds = weather_data.get('clouds')
+        if clouds is None:
+            clouds = 50
         hour = weather_data.get('hour', 12)
         
         # Calculate all metrics

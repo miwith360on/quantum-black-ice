@@ -47,17 +47,24 @@ class WeatherService:
             data = response.json()
             
             # Calculate dew point
-            temperature = data['main']['temp']
+            temperature_c = data['main']['temp']
+            feels_like_c = data['main']['feels_like']
             humidity = data['main']['humidity']
-            dew_point = self._calculate_dew_point(temperature, humidity)
+            dew_point_c = self._calculate_dew_point(temperature_c, humidity)
+            
+            # Convert to Fahrenheit for consistency with rest of system
+            temperature_f = (temperature_c * 9/5) + 32
+            feels_like_f = (feels_like_c * 9/5) + 32
+            dew_point_f = (dew_point_c * 9/5) + 32
+            wind_mph = data['wind']['speed'] * 2.237  # m/s to mph
             
             return {
-                'temperature': temperature,
-                'feels_like': data['main']['feels_like'],
+                'temperature': temperature_f,
+                'feels_like': feels_like_f,
                 'humidity': humidity,
                 'pressure': data['main']['pressure'],
-                'dew_point': dew_point,
-                'wind_speed': data['wind']['speed'],
+                'dew_point': dew_point_f,
+                'wind_speed': wind_mph,
                 'wind_deg': data['wind'].get('deg', 0),
                 'clouds': data['clouds']['all'],
                 'visibility': data.get('visibility', 10000),
