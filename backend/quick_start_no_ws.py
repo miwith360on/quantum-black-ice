@@ -8,7 +8,10 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
 import os
+import time
 from dotenv import load_dotenv
+from logging_config import setup_logging, log_api_request, log_prediction, log_error, log_performance
+from prometheus_flask_exporter import PrometheusMetrics
 
 from quantum_predictor import QuantumBlackIcePredictor
 from advanced_weather_calculator import AdvancedWeatherCalculator
@@ -31,15 +34,22 @@ from recent_precipitation_tracker import RecentPrecipitationTracker
 
 load_dotenv()
 
+# Initialize structured logging
+logger = setup_logging('quick_start_no_ws')
+
 # Setup Flask with frontend files
 static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Initialize Prometheus metrics
+metrics = PrometheusMetrics(app)
+metrics.info('app_info', 'Application info', version='1.0.0', service='quantum-black-ice')
+
 # Initialize quantum services
-print("\n" + "="*60)
-print("🚀 QUANTUM BLACK ICE DETECTION - Starting Server")
-print("="*60)
+logger.info("="*60)
+logger.info("🚀 QUANTUM BLACK ICE DETECTION - Starting Server")
+logger.info("="*60)
 
 quantum_predictor = QuantumBlackIcePredictor()
 weather_calculator = AdvancedWeatherCalculator()
@@ -60,17 +70,17 @@ bridge_freeze = BridgeFreezeCalculator()
 overnight_cooling = OvernightCoolingPredictor()
 recent_precip = RecentPrecipitationTracker()
 
-print("✅ Quantum Predictor ready (10-qubit circuits)")
-print("✅ QFPM ready (Quantum Freeze Probability Matrix)")
-print("✅ IoT Mesh Network ready (Road Safety Mesh)")
-print("✅ BIFI ready (Black Ice Formation Index)")
-print("✅ RWIS Service ready (Road Weather Information)")
-print("✅ Precipitation Type Service ready")
-print("✅ Bridge Freeze Calculator ready")
-print("✅ Overnight Cooling Predictor ready")
-print("✅ Recent Precipitation Tracker ready")
-print("✅ NOAA weather service ready")
-print("✅ Advanced weather calculator ready")
+logger.info("✅ Quantum Predictor ready (10-qubit circuits)")
+logger.info("✅ QFPM ready (Quantum Freeze Probability Matrix)")
+logger.info("✅ IoT Mesh Network ready (Road Safety Mesh)")
+logger.info("✅ BIFI ready (Black Ice Formation Index)")
+logger.info("✅ RWIS Service ready (Road Weather Information)")
+logger.info("✅ Precipitation Type Service ready")
+logger.info("✅ Bridge Freeze Calculator ready")
+logger.info("✅ Overnight Cooling Predictor ready")
+logger.info("✅ Recent Precipitation Tracker ready")
+logger.info("✅ NOAA weather service ready")
+logger.info("✅ Advanced weather calculator ready")
 
 # ==================== ROUTES ====================
 
@@ -157,13 +167,17 @@ def health_check():
 @app.route('/api/weather/current', methods=['GET'])
 def get_current_weather():
     """Get current weather data"""
+    start_time = time.time()
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
     
     if not lat or not lon:
+        logger.warning("Weather request missing coordinates")
         return jsonify({'error': 'lat and lon parameters required'}), 400
     
     try:
+        logger.debug(f"Fetching weather for lat={lat}, lon={lon}")
+        
         # Get base weather data
         weather_data = weather_service.get_current_weather(lat, lon)
         
@@ -178,8 +192,14 @@ def get_current_weather():
         # Enhance with advanced calculations
         weather_data = weather_calculator.enhance_weather_data(weather_data)
         
+        duration_ms = (time.time() - start_time) * 1000
+        log_api_request(logger, '/api/weather/current', {'lat': lat, 'lon': lon}, duration_ms)
+        log_performance(logger, 'weather_fetch', duration_ms, {'source': 'openmeteo'})
+        
         return jsonify(weather_data)
     except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        log_error(logger, e, {'endpoint': '/api/weather/current', 'lat': lat, 'lon': lon})
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/ml/predict', methods=['POST'])
@@ -202,11 +222,18 @@ def ml_predict():
 @app.route('/api/quantum/predict', methods=['POST'])
 def quantum_predict():
     """Quantum prediction endpoint"""
+    start_time = time.time()
     try:
         data = request.get_json()
         weather_data = data.get('weather_data', data)
         
+        logger.debug("Quantum prediction request", extra={'data': weather_data})
+        
         prediction = quantum_predictor.predict(weather_data)
+        
+        duration_ms = (time.time() - start_time) * 1000
+        log_prediction(logger, 'quantum', weather_data, prediction, prediction.get('confidence'))
+        log_performance(logger, 'quantum_predict', duration_ms, {'qubits': 10})
         
         return jsonify({
             'success': True,
@@ -215,6 +242,7 @@ def quantum_predict():
             'algorithm': 'QAOA'
         })
     except Exception as e:
+        log_error(logger, e, {'endpoint': '/api/quantum/predict'})
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/predictions/advanced', methods=['POST'])
@@ -302,12 +330,13 @@ def accuracy_upgrades():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("✅ Server ready at http://localhost:5000")
-    print("📱 Mobile: http://localhost:5000 (or http://192.168.1.103:5000)")
-    print("💻 Desktop: http://localhost:5000/desktop")
-    print("🗺️  Route Monitor: http://localhost:5000/route-dashboard")
-    print("⚡ Advanced: http://localhost:5000/advanced")
-    print("="*60 + "\n")
+    logger.info("\n" + "="*60)
+    logger.info("✅ Server ready at http://localhost:5000")
+    logger.info("📱 Mobile: http://localhost:5000 (or http://192.168.1.103:5000)")
+    logger.info("💻 Desktop: http://localhost:5000/desktop")
+    logger.info("🗺️  Route Monitor: http://localhost:5000/route-dashboard")
+    logger.info("⚡ Advanced: http://localhost:5000/advanced")
+    logger.info("📊 Metrics: http://localhost:5000/metrics")
+    logger.info("="*60 + "\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False)
