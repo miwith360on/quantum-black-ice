@@ -2381,3 +2381,71 @@ body {
 }
 
 /* ==================== END VIZ TAB VIEW ==================== */
+
+/* ==================== DATA FRESHNESS INDICATORS ==================== */
+
+.data-freshness-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.freshness-header {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.freshness-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.freshness-item {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    border-left: 3px solid var(--border);
+}
+
+.freshness-icon {
+    font-size: 18px;
+}
+
+.freshness-source {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.freshness-age {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.freshness-warning {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+    font-size: 13px;
+    color: var(--danger);
+    line-height: 1.5;
+}
+
+/* ==================== END DATA FRESHNESS ==================== */

@@ -12,6 +12,7 @@ import time
 from dotenv import load_dotenv
 from logging_config import setup_logging, log_api_request, log_prediction, log_error, log_performance
 from prometheus_flask_exporter import PrometheusMetrics
+from data_freshness import freshness_tracker
 
 from quantum_predictor import QuantumBlackIcePredictor
 from advanced_weather_calculator import AdvancedWeatherCalculator
@@ -147,6 +148,8 @@ def serve_static(path):
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
+    freshness_status = freshness_tracker.get_all_freshness()
+    
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
@@ -161,7 +164,8 @@ def health_check():
             'Precipitation Type Detection',
             'Bridge Freeze Calculation',
             'Overnight Cooling Prediction'
-        ]
+        ],
+        'data_freshness': freshness_status
     })
 
 @app.route('/api/weather/current', methods=['GET'])
@@ -178,19 +182,32 @@ def get_current_weather():
     try:
         logger.debug(f"Fetching weather for lat={lat}, lon={lon}")
         
+        sources_used = []
+        
         # Get base weather data
         weather_data = weather_service.get_current_weather(lat, lon)
+        freshness_tracker.update_timestamp('weather_api')
+        sources_used.append('weather_api')
         
         # Try to enhance with NOAA data (US only)
         try:
             noaa_data = noaa_service.get_current_observations(lat, lon)
             if noaa_data:
                 weather_data.update(noaa_data)
+                freshness_tracker.update_timestamp('noaa')
+                sources_used.append('noaa')
         except:
             pass
         
         # Enhance with advanced calculations
         weather_data = weather_calculator.enhance_weather_data(weather_data)
+        
+        # Add data freshness info
+        freshness_info = freshness_tracker.calculate_overall_confidence(
+            sources_used,
+            base_confidence=0.85
+        )
+        weather_data['data_freshness'] = freshness_info
         
         duration_ms = (time.time() - start_time) * 1000
         log_api_request(logger, '/api/weather/current', {'lat': lat, 'lon': lon}, duration_ms)
@@ -230,9 +247,22 @@ def quantum_predict():
         logger.debug("Quantum prediction request", extra={'data': weather_data})
         
         prediction = quantum_predictor.predict(weather_data)
+        freshness_tracker.update_timestamp('forecast')
+        
+        # Adjust confidence based on data freshness
+        sources_used = ['weather_api', 'forecast']
+        base_confidence = prediction.get('confidence', 0.80)
+        freshness_info = freshness_tracker.calculate_overall_confidence(
+            sources_used,
+            base_confidence=base_confidence
+        )
+        
+        # Update prediction with adjusted confidence
+        prediction['confidence'] = freshness_info['confidence']
+        prediction['data_freshness'] = freshness_info
         
         duration_ms = (time.time() - start_time) * 1000
-        log_prediction(logger, 'quantum', weather_data, prediction, prediction.get('confidence'))
+        log_prediction(logger, 'quantum', weather_data, prediction, freshness_info['confidence'])
         log_performance(logger, 'quantum_predict', duration_ms, {'qubits': 10})
         
         return jsonify({

@@ -707,7 +707,21 @@ function updatePredictionDisplay(data) {
     
     // Update prediction result
     const predictionResult = document.getElementById('prediction-result');
-    predictionResult.textContent = data.message || `Risk: ${riskLevel} (${Math.round(confidence)}% confidence)`;
+    let resultText = data.message || `Risk: ${riskLevel} (${Math.round(confidence)}% confidence)`;
+    
+    // Add data freshness info if available
+    if (data.data_freshness) {
+        const freshness = data.data_freshness;
+        if (freshness.freshness_penalty > 0.1) {
+            resultText += `\n⚠️ Confidence reduced by ${Math.round(freshness.freshness_penalty * 100)}% due to ${freshness.explanation}`;
+        }
+    }
+    
+    predictionResult.textContent = resultText;
+    
+    // Display data freshness indicators
+    displayDataFreshness(data.data_freshness);
+}
 }
 
 function updateQuantumDisplay(quantumData) {
@@ -3334,6 +3348,57 @@ function startPeriodicUpdates() {
             fetchRoadRisks();
         }
     }, 600000); // 10 minutes
+}
+
+// Display data freshness indicators
+function displayDataFreshness(freshnessData) {
+    if (!freshnessData || !freshnessData.sources) return;
+    
+    // Find or create freshness container
+    let freshnessContainer = document.getElementById('data-freshness-container');
+    if (!freshnessContainer) {
+        freshnessContainer = document.createElement('div');
+        freshnessContainer.id = 'data-freshness-container';
+        freshnessContainer.className = 'data-freshness-container';
+        
+        // Insert after prediction display
+        const predictionSection = document.querySelector('.ai-prediction');
+        if (predictionSection && predictionSection.parentNode) {
+            predictionSection.parentNode.insertBefore(freshnessContainer, predictionSection.nextSibling);
+        }
+    }
+    
+    // Build freshness HTML
+    let html = '<div class="freshness-header">📊 Data Sources</div>';
+    html += '<div class="freshness-items">';
+    
+    for (const source of freshnessData.sources) {
+        const statusIcon = source.status === 'fresh' ? '✅' :
+                          source.status === 'recent' ? '🟡' :
+                          source.status === 'stale' ? '🟠' :
+                          source.status === 'very_stale' ? '🔴' : '⚫';
+        
+        html += `
+            <div class="freshness-item" style="border-left: 3px solid ${source.color}">
+                <span class="freshness-icon">${statusIcon}</span>
+                <span class="freshness-source">${source.source.toUpperCase()}</span>
+                <span class="freshness-age">${source.age_display} ago</span>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    
+    // Add overall confidence info
+    if (freshnessData.freshness_penalty > 0.05) {
+        html += `
+            <div class="freshness-warning">
+                ⚠️ Confidence reduced by ${Math.round(freshnessData.freshness_penalty * 100)}%: ${freshnessData.explanation}
+            </div>
+        `;
+    }
+    
+    freshnessContainer.innerHTML = html;
 }
 
 // Handle app install prompt
