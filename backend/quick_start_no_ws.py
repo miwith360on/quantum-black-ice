@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from logging_config import setup_logging, log_api_request, log_prediction, log_error, log_performance
 from prometheus_flask_exporter import PrometheusMetrics
 from data_freshness import freshness_tracker
+from feedback_system import feedback_system
 
 from quantum_predictor import QuantumBlackIcePredictor
 from advanced_weather_calculator import AdvancedWeatherCalculator
@@ -311,6 +312,106 @@ def advanced_predictions():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# ==================== FEEDBACK ENDPOINTS ====================
+
+@app.route('/api/feedback/submit', methods=['POST'])
+def submit_feedback():
+    """Submit ground-truth road condition report"""
+    try:
+        data = request.get_json()
+        
+        lat = data.get('lat')
+        lon = data.get('lon')
+        actual_condition = data.get('actual_condition')
+        
+        if not all([lat, lon, actual_condition]):
+            return jsonify({'error': 'lat, lon, and actual_condition required'}), 400
+        
+        if actual_condition not in ['dry', 'wet', 'icy', 'snow']:
+            return jsonify({'error': 'Invalid condition. Must be: dry, wet, icy, or snow'}), 400
+        
+        report = feedback_system.submit_report(
+            lat=lat,
+            lon=lon,
+            actual_condition=actual_condition,
+            predicted_condition=data.get('predicted_condition'),
+            predicted_probability=data.get('predicted_probability'),
+            user_comment=data.get('comment'),
+            metadata=data.get('metadata')
+        )
+        
+        logger.info(f"Feedback submitted: {actual_condition} at ({lat}, {lon})")
+        
+        return jsonify({
+            'success': True,
+            'report': report,
+            'message': 'Thank you for your report!'
+        })
+    except Exception as e:
+        log_error(logger, e, {'endpoint': '/api/feedback/submit'})
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/feedback/nearby', methods=['GET'])
+def get_nearby_feedback():
+    """Get recent feedback reports near a location"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        radius = request.args.get('radius', default=5.0, type=float)
+        max_age_hours = request.args.get('max_age_hours', default=2, type=int)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat and lon required'}), 400
+        
+        reports = feedback_system.get_reports_nearby(
+            lat, lon, radius, max_age_hours
+        )
+        
+        return jsonify({
+            'success': True,
+            'reports': reports,
+            'count': len(reports)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/feedback/vote', methods=['POST'])
+def vote_feedback():
+    """Upvote or downvote a feedback report"""
+    try:
+        data = request.get_json()
+        report_id = data.get('report_id')
+        vote_type = data.get('vote_type')  # 'up' or 'down'
+        
+        if not report_id or not vote_type:
+            return jsonify({'error': 'report_id and vote_type required'}), 400
+        
+        success = feedback_system.vote_report(report_id, vote_type)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Vote recorded'})
+        else:
+            return jsonify({'success': False, 'error': 'Report not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/feedback/stats', methods=['GET'])
+def get_feedback_stats():
+    """Get accuracy statistics from feedback"""
+    try:
+        accuracy_stats = feedback_system.get_accuracy_stats()
+        recent_stats = feedback_system.get_recent_stats(hours=24)
+        
+        return jsonify({
+            'success': True,
+            'accuracy': accuracy_stats,
+            'recent_24h': recent_stats
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ==================== END FEEDBACK ENDPOINTS ====================
 
 @app.route('/api/predictions/accuracy-upgrades', methods=['POST'])
 def accuracy_upgrades():

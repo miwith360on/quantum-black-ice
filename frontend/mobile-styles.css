@@ -2449,3 +2449,146 @@ body {
 }
 
 /* ==================== END DATA FRESHNESS ==================== */
+
+/* ==================== FEEDBACK SYSTEM ==================== */
+
+.feedback-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.feedback-header {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.feedback-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.feedback-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.feedback-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    color: var(--text-primary);
+}
+
+.feedback-btn:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+}
+
+.feedback-btn:active {
+    transform: translateY(0);
+}
+
+.feedback-icon {
+    font-size: 32px;
+}
+
+.feedback-label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.feedback-dry:hover { border-color: #eab308; }
+.feedback-wet:hover { border-color: #06b6d4; }
+.feedback-icy:hover { border-color: #ef4444; }
+.feedback-snow:hover { border-color: #a78bfa; }
+
+.feedback-status {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    display: none;
+}
+
+.feedback-status-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.feedback-status-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Nearby Reports */
+.nearby-reports-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.reports-header {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.reports-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.report-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+}
+
+.report-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.report-details {
+    flex: 1;
+}
+
+.report-condition {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.report-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ==================== END FEEDBACK SYSTEM ==================== */

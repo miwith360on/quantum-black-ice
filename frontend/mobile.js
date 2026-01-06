@@ -721,6 +721,9 @@ function updatePredictionDisplay(data) {
     
     // Display data freshness indicators
     displayDataFreshness(data.data_freshness);
+    
+    // Show feedback buttons
+    displayFeedbackButtons(data);
 }
 }
 
@@ -3399,6 +3402,187 @@ function displayDataFreshness(freshnessData) {
     }
     
     freshnessContainer.innerHTML = html;
+}
+
+// Display feedback buttons for user to report actual conditions
+function displayFeedbackButtons(predictionData) {
+    let feedbackContainer = document.getElementById('feedback-container');
+    
+    if (!feedbackContainer) {
+        feedbackContainer = document.createElement('div');
+        feedbackContainer.id = 'feedback-container';
+        feedbackContainer.className = 'feedback-container';
+        
+        // Insert after data freshness or prediction
+        const freshnessContainer = document.getElementById('data-freshness-container');
+        const predictionSection = document.querySelector('.ai-prediction');
+        const insertAfter = freshnessContainer || predictionSection;
+        
+        if (insertAfter && insertAfter.parentNode) {
+            insertAfter.parentNode.insertBefore(feedbackContainer, insertAfter.nextSibling);
+        }
+    }
+    
+    const html = `
+        <div class="feedback-header">🚗 What are road conditions actually like?</div>
+        <div class="feedback-subtitle">Help improve predictions</div>
+        <div class="feedback-buttons">
+            <button class="feedback-btn feedback-dry" onclick="submitFeedback('dry')">
+                <span class="feedback-icon">☀️</span>
+                <span class="feedback-label">Dry</span>
+            </button>
+            <button class="feedback-btn feedback-wet" onclick="submitFeedback('wet')">
+                <span class="feedback-icon">💧</span>
+                <span class="feedback-label">Wet</span>
+            </button>
+            <button class="feedback-btn feedback-icy" onclick="submitFeedback('icy')">
+                <span class="feedback-icon">🧊</span>
+                <span class="feedback-label">Icy</span>
+            </button>
+            <button class="feedback-btn feedback-snow" onclick="submitFeedback('snow')">
+                <span class="feedback-icon">❄️</span>
+                <span class="feedback-label">Snow</span>
+            </button>
+        </div>
+        <div id="feedback-status" class="feedback-status"></div>
+    `;
+    
+    feedbackContainer.innerHTML = html;
+    
+    // Store prediction data for feedback submission
+    window.currentPredictionData = predictionData;
+}
+
+// Submit feedback report
+async function submitFeedback(actualCondition) {
+    if (!currentLocation.lat || !currentLocation.lng) {
+        showFeedbackStatus('❌ Location required', 'error');
+        return;
+    }
+    
+    try {
+        const predictionData = window.currentPredictionData || {};
+        
+        const response = await fetch(`${API_BASE}/api/feedback/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lat: currentLocation.lat,
+                lon: currentLocation.lng,
+                actual_condition: actualCondition,
+                predicted_condition: predictionData.risk_level || predictionData.prediction,
+                predicted_probability: predictionData.probability,
+                metadata: {
+                    temperature: predictionData.temperature,
+                    timestamp: new Date().toISOString()
+                }
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showFeedbackStatus('✅ Thank you! Report submitted', 'success');
+            // Also fetch and show nearby reports
+            fetchNearbyReports();
+        } else {
+            showFeedbackStatus('❌ Failed to submit', 'error');
+        }
+    } catch (error) {
+        console.error('Feedback submission error:', error);
+        showFeedbackStatus('❌ Error submitting report', 'error');
+    }
+}
+
+// Show feedback status message
+function showFeedbackStatus(message, type) {
+    const statusEl = document.getElementById('feedback-status');
+    if (!statusEl) return;
+    
+    statusEl.textContent = message;
+    statusEl.className = `feedback-status feedback-status-${type}`;
+    statusEl.style.display = 'block';
+    
+    // Hide after 3 seconds
+    setTimeout(() => {
+        statusEl.style.display = 'none';
+    }, 3000);
+}
+
+// Fetch and display nearby reports
+async function fetchNearbyReports() {
+    if (!currentLocation.lat || !currentLocation.lng) return;
+    
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/feedback/nearby?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius=5&max_age_hours=2`
+        );
+        
+        const data = await response.json();
+        
+        if (data.success && data.reports.length > 0) {
+            displayNearbyReports(data.reports);
+        }
+    } catch (error) {
+        console.error('Error fetching nearby reports:', error);
+    }
+}
+
+// Display nearby reports
+function displayNearbyReports(reports) {
+    let reportsContainer = document.getElementById('nearby-reports-container');
+    
+    if (!reportsContainer) {
+        reportsContainer = document.createElement('div');
+        reportsContainer.id = 'nearby-reports-container';
+        reportsContainer.className = 'nearby-reports-container';
+        
+        const feedbackContainer = document.getElementById('feedback-container');
+        if (feedbackContainer && feedbackContainer.parentNode) {
+            feedbackContainer.parentNode.insertBefore(reportsContainer, feedbackContainer.nextSibling);
+        }
+    }
+    
+    let html = '<div class="reports-header">📍 Nearby Reports (last 2 hours)</div>';
+    html += '<div class="reports-list">';
+    
+    for (const report of reports.slice(0, 5)) {
+        const conditionEmoji = {
+            'dry': '☀️',
+            'wet': '💧',
+            'icy': '🧊',
+            'snow': '❄️'
+        }[report.actual_condition] || '🚗';
+        
+        const timeAgo = getTimeAgo(report.timestamp);
+        
+        html += `
+            <div class="report-item">
+                <span class="report-icon">${conditionEmoji}</span>
+                <div class="report-details">
+                    <div class="report-condition">${report.actual_condition.toUpperCase()}</div>
+                    <div class="report-meta">${report.distance_miles} mi away • ${timeAgo}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    reportsContainer.innerHTML = html;
+}
+
+// Get human-readable time ago
+function getTimeAgo(timestamp) {
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffMs = now - then;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}min ago`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    return `${diffHours}hr ago`;
 }
 
 // Handle app install prompt
