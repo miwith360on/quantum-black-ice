@@ -115,6 +115,16 @@ def desktop():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/validation')
+@app.route('/validation-dashboard.html')
+def validation_dashboard():
+    """Serve validation/accuracy dashboard"""
+    response = send_from_directory(static_folder, 'validation-dashboard.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/route-dashboard')
 @app.route('/route-dashboard.html')
 def route_dashboard():

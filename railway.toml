@@ -3,7 +3,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "cd backend && gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT quick_start:app"
+startCommand = "cd backend && gunicorn -w 4 --bind 0.0.0.0:$PORT quick_start_no_ws:app"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 

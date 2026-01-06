@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation Dashboard - Black Ice Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0B1020 0%, #1B2140 100%);
+            color: #E6EAF3;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: #9AA3B2;
+            margin-bottom: 30px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #12172A;
+            border: 1px solid #2A3458;
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #9AA3B2;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 48px;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-value.green { color: #10b981; }
+        .stat-value.yellow { color: #eab308; }
+        .stat-value.orange { color: #f59e0b; }
+        .stat-value.red { color: #ef4444; }
+
+        .stat-sublabel {
+            font-size: 12px;
+            color: #9AA3B2;
+        }
+
+        .chart-card {
+            background: #12172A;
+            border: 1px solid #2A3458;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .calibration-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .calibration-label {
+            width: 80px;
+            font-size: 13px;
+            color: #9AA3B2;
+        }
+
+        .calibration-bar-container {
+            flex: 1;
+            height: 24px;
+            background: #1B2140;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .calibration-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4F46E5 0%, #06B6D4 100%);
+            border-radius: 12px;
+            transition: width 0.3s ease;
+        }
+
+        .calibration-value {
+            width: 60px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #2A3458;
+        }
+
+        th {
+            font-size: 12px;
+            color: #9AA3B2;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        td {
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-green {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .badge-yellow {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+
+        .badge-red {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #9AA3B2;
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            color: #ef4444;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Validation Dashboard</h1>
+        <p class="subtitle">Real-time accuracy metrics and performance analysis</p>
+
+        <div id="loading" class="loading">
+            <p>Loading validation data...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="dashboard-content" style="display: none;">
+            <!-- Summary Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Overall Accuracy</div>
+                    <div class="stat-value green" id="overall-accuracy">--</div>
+                    <div class="stat-sublabel" id="accuracy-sublabel">--</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Total Reports</div>
+                    <div class="stat-value" id="total-reports">--</div>
+                    <div class="stat-sublabel" id="reports-sublabel">--</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Precision (Ice)</div>
+                    <div class="stat-value yellow" id="precision">--</div>
+                    <div class="stat-sublabel">When we predict ice</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Recall (Ice)</div>
+                    <div class="stat-value yellow" id="recall">--</div>
+                    <div class="stat-sublabel">Actual ice we catch</div>
+                </div>
+            </div>
+
+            <!-- Calibration Chart -->
+            <div class="chart-card">
+                <div class="chart-title">Calibration by Condition</div>
+                <div id="calibration-chart"></div>
+            </div>
+
+            <!-- Ice Detection Performance -->
+            <div class="chart-card">
+                <div class="chart-title">Ice Detection Confusion Matrix</div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Count</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>True Positives</td>
+                                <td id="true-positives">--</td>
+                                <td><span class="badge badge-green" id="tp-badge">--</span></td>
+                            </tr>
+                            <tr>
+                                <td>False Positives</td>
+                                <td id="false-positives">--</td>
+                                <td><span class="badge badge-red" id="fp-badge">--</span></td>
+                            </tr>
+                            <tr>
+                                <td>False Negatives</td>
+                                <td id="false-negatives">--</td>
+                                <td><span class="badge badge-red" id="fn-badge">--</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="chart-card">
+                <div class="chart-title">Recent 24 Hours</div>
+                <div id="recent-stats"></div>
+            </div>
+
+            <button class="refresh-btn" onclick="loadDashboard()">🔄 Refresh Data</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin.includes('localhost') 
+            ? 'http://localhost:5000' 
+            : window.location.origin;
+
+        async function loadDashboard() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const content = document.getElementById('dashboard-content');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            content.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/feedback/stats`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load stats');
+                }
+
+                displayStats(data.accuracy, data.recent_24h);
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch (err) {
+                console.error('Dashboard error:', err);
+                error.textContent = `Error: ${err.message}. Make sure you have submitted some feedback reports first.`;
+                error.style.display = 'block';
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayStats(accuracy, recent) {
+            // Overall accuracy
+            const acc = accuracy.accuracy_percent || 0;
+            document.getElementById('overall-accuracy').textContent = `${acc.toFixed(1)}%`;
+            document.getElementById('accuracy-sublabel').textContent = 
+                `Based on ${accuracy.total_reports} validated predictions`;
+
+            // Color code accuracy
+            const accEl = document.getElementById('overall-accuracy');
+            accEl.className = 'stat-value';
+            if (acc >= 80) accEl.classList.add('green');
+            else if (acc >= 60) accEl.classList.add('yellow');
+            else if (acc >= 40) accEl.classList.add('orange');
+            else accEl.classList.add('red');
+
+            // Total reports
+            document.getElementById('total-reports').textContent = accuracy.total_reports;
+            document.getElementById('reports-sublabel').textContent = 
+                `${recent.count} in last 24 hours`;
+
+            // Precision & Recall
+            document.getElementById('precision').textContent = 
+                `${(accuracy.precision_percent || 0).toFixed(1)}%`;
+            document.getElementById('recall').textContent = 
+                `${(accuracy.recall_percent || 0).toFixed(1)}%`;
+
+            // Ice detection stats
+            const ice = accuracy.ice_detection || {};
+            document.getElementById('true-positives').textContent = ice.true_positives || 0;
+            document.getElementById('false-positives').textContent = ice.false_positives || 0;
+            document.getElementById('false-negatives').textContent = ice.false_negatives || 0;
+
+            // Badges
+            document.getElementById('tp-badge').textContent = 
+                ice.true_positives > 0 ? 'Correct' : 'No data';
+            document.getElementById('fp-badge').textContent = 
+                ice.false_positives > 0 ? 'False alarm' : 'Good';
+            document.getElementById('fn-badge').textContent = 
+                ice.false_negatives > 0 ? 'Missed' : 'Good';
+
+            // Calibration chart
+            displayCalibration(accuracy.by_condition);
+
+            // Recent activity
+            displayRecentActivity(recent);
+        }
+
+        function displayCalibration(byCondition) {
+            const chart = document.getElementById('calibration-chart');
+            let html = '';
+
+            for (const [condition, stats] of Object.entries(byCondition)) {
+                const total = stats.total || 0;
+                const correct = stats.correct || 0;
+                const percent = total > 0 ? (correct / total * 100) : 0;
+
+                html += `
+                    <div class="calibration-row">
+                        <div class="calibration-label">${condition.toUpperCase()}</div>
+                        <div class="calibration-bar-container">
+                            <div class="calibration-bar" style="width: ${percent}%"></div>
+                        </div>
+                        <div class="calibration-value">${percent.toFixed(0)}%</div>
+                    </div>
+                `;
+            }
+
+            if (!html) {
+                html = '<p style="color: #9AA3B2; text-align: center;">No data yet</p>';
+            }
+
+            chart.innerHTML = html;
+        }
+
+        function displayRecentActivity(recent) {
+            const container = document.getElementById('recent-stats');
+            const conditions = recent.conditions || {};
+
+            let html = '<div class="stats-grid">';
+
+            for (const [condition, count] of Object.entries(conditions)) {
+                const emoji = {
+                    'dry': '☀️',
+                    'wet': '💧',
+                    'icy': '🧊',
+                    'snow': '❄️'
+                }[condition] || '🚗';
+
+                html += `
+                    <div class="stat-card">
+                        <div class="stat-label">${emoji} ${condition.toUpperCase()}</div>
+                        <div class="stat-value">${count}</div>
+                        <div class="stat-sublabel">reports</div>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+
+            if (Object.keys(conditions).length === 0) {
+                html = '<p style="color: #9AA3B2; text-align: center;">No reports in last 24 hours</p>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Load on page load
+        loadDashboard();
+
+        // Auto-refresh every 60 seconds
+        setInterval(loadDashboard, 60000);
+    </script>
+</body>
+</html>
