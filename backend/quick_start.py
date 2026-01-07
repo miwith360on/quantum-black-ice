@@ -10,7 +10,9 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 from datetime import datetime
 import os
+import time
 from dotenv import load_dotenv
+from logging_config import setup_logging, log_api_request, log_prediction, log_error
 
 from quantum_predictor import QuantumBlackIcePredictor
 from advanced_weather_calculator import AdvancedWeatherCalculator
@@ -32,6 +34,9 @@ from overnight_cooling_predictor import OvernightCoolingPredictor
 from recent_precipitation_tracker import RecentPrecipitationTracker
 
 load_dotenv()
+
+# Initialize structured logging
+logger = setup_logging('quick_start')
 
 # Setup Flask with frontend files
 static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -221,9 +226,10 @@ def get_current_weather():
 @app.route('/api/ml/predict', methods=['POST'])
 def ml_predict():
     """Get AI/ML prediction with flexible input handling"""
+    start_time = time.time()
     try:
         data = request.get_json(force=True)
-        print("📥 Incoming ML data:", data)  # Debugging
+        logger.debug("ML prediction request", extra={'data': data})
 
         # Accept flexible key names to prevent 400 errors
         temp = float(data.get("temperature") or data.get("temp") or 32.0)
