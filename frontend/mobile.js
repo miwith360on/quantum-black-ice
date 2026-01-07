@@ -725,7 +725,6 @@ function updatePredictionDisplay(data) {
     // Show feedback buttons
     displayFeedbackButtons(data);
 }
-}
 
 function updateQuantumDisplay(quantumData) {
     const quantumSection = document.getElementById('quantum-section');
