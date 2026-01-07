@@ -719,11 +719,15 @@ function updatePredictionDisplay(data) {
     
     predictionResult.textContent = resultText;
     
-    // Display data freshness indicators
-    displayDataFreshness(data.data_freshness);
+    // Display data freshness indicators (if available)
+    if (data.data_freshness && typeof displayDataFreshness === 'function') {
+        displayDataFreshness(data.data_freshness);
+    }
     
-    // Show feedback buttons
-    displayFeedbackButtons(data);
+    // Show feedback buttons (if available)
+    if (typeof displayFeedbackButtons === 'function') {
+        displayFeedbackButtons(data);
+    }
 }
 
 function updateQuantumDisplay(quantumData) {
