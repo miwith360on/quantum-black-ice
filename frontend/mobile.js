@@ -164,6 +164,35 @@ function registerServiceWorker() {
     }
 }
 
+// Helper function to use default location
+function useDefaultLocation(reason) {
+    console.log('📍 Using default location:', reason);
+    currentLocation.lat = 42.3314;
+    currentLocation.lng = -83.0458;
+    updateLocationText('Detroit, MI (default)');
+    
+    // Update map to default location
+    map.setView([currentLocation.lat, currentLocation.lng], 12);
+    
+    // Add marker for default location
+    if (userMarker) {
+        map.removeLayer(userMarker);
+    }
+    userMarker = L.marker([currentLocation.lat, currentLocation.lng], {
+        icon: L.divIcon({
+            className: 'user-location-marker',
+            html: '<div style="background: #FF6B6B; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+            iconSize: [22, 22]
+        })
+    }).addTo(map);
+    
+    showAlert(reason + ' Using Detroit, MI. You can manually set your location.', 'warning');
+    showManualLocationPrompt();
+    
+    // Fetch weather data for default location
+    fetchWeatherData();
+}
+
 // Initialize Leaflet map
 function initializeMap() {
     map = L.map('map', {
@@ -215,8 +244,17 @@ async function getUserLocation() {
         showAlert('💡 If location prompt doesn\'t appear, try accessing via localhost or use manual entry', 'info');
     }
     
+    // Add manual timeout fallback (in case browser timeout fails)
+    let locationTimeout = setTimeout(() => {
+        console.warn('⏰ Manual location timeout triggered (15s)');
+        if (!currentLocation.lat || currentLocation.lat === 0) {
+            useDefaultLocation('Location request timed out after 15 seconds.');
+        }
+    }, 15000);
+    
     navigator.geolocation.getCurrentPosition(
         async (position) => {
+            clearTimeout(locationTimeout);
             currentLocation.lat = position.coords.latitude;
             currentLocation.lng = position.coords.longitude;
             
@@ -264,53 +302,29 @@ async function getUserLocation() {
             }
         },
         (error) => {
+            clearTimeout(locationTimeout);
             console.error('❌ Location error:', error);
             
             let errorMessage = 'Unable to get your location. ';
-            let shouldRetry = false;
             
             switch(error.code) {
                 case error.PERMISSION_DENIED:
-                    errorMessage += 'Permission denied. Using default location (Detroit, MI).';
+                    errorMessage += 'Permission denied.';
                     console.error('📍 User denied location permission');
                     break;
                 case error.POSITION_UNAVAILABLE:
-                    errorMessage += 'Location unavailable. Using default location (Detroit, MI).';
+                    errorMessage += 'Location unavailable.';
                     console.error('📍 Position unavailable');
                     break;
                 case error.TIMEOUT:
-                    errorMessage += 'Location request timed out. Using default location.';
+                    errorMessage += 'Location request timed out.';
                     console.error('📍 Location timeout');
                     break;
                 default:
-                    errorMessage += 'Unknown error. Using default location.';
+                    errorMessage += 'Unknown error.';
             }
             
-            // Use default location (Detroit, MI) instead of leaving it blank
-            currentLocation.lat = 42.3314;
-            currentLocation.lng = -83.0458;
-            updateLocationText('Detroit, MI (default)');
-            
-            // Update map to default location
-            map.setView([currentLocation.lat, currentLocation.lng], 12);
-            
-            // Add marker for default location
-            if (userMarker) {
-                map.removeLayer(userMarker);
-            }
-            userMarker = L.marker([currentLocation.lat, currentLocation.lng], {
-                icon: L.divIcon({
-                    className: 'user-location-marker',
-                    html: '<div style="background: #FF6B6B; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
-                    iconSize: [22, 22]
-                })
-            }).addTo(map);
-            
-            showAlert(errorMessage + ' You can manually set your location.', 'warning');
-            showManualLocationPrompt();
-            
-            // Fetch weather data for default location
-            fetchWeatherData();
+            useDefaultLocation(errorMessage);
         },
         {
             enableHighAccuracy: true,
