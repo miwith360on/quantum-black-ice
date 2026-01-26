@@ -1028,19 +1028,18 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
     const maxRetries = 2;
     
     try {
-        // Try enhanced QFPM first (uses real RWIS data if available)
-        const useEnhanced = currentLocation.lat && currentLocation.lng;
-        const endpoint = useEnhanced ? '/api/qfpm/enhanced' : '/api/qfpm/predict';
+        // Use standard QFPM endpoint (quick_start.py only has /predict)
+        const endpoint = '/api/qfpm/predict';
         
         const requestBody = {
             weather_data: weatherData
         };
         
-        // Add location for enhanced QFPM
-        if (useEnhanced) {
+        // Add location context if available
+        if (currentLocation.lat && currentLocation.lng) {
             requestBody.lat = currentLocation.lat;
             requestBody.lon = currentLocation.lng;
-            console.log('🛣️ Using enhanced QFPM with real RWIS data');
+            console.log('🛣️ Using QFPM with location context');
         }
         
         const response = await fetch(`${API_BASE}${endpoint}`, {
