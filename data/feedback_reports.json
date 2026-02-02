@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "timestamp": "2026-01-06T13:46:17.603978",
+    "location": {
+      "lat": 40.7,
+      "lon": -74.0
+    },
+    "actual_condition": "icy",
+    "predicted_condition": "High",
+    "predicted_probability": 0.85,
+    "user_comment": null,
+    "metadata": {},
+    "upvotes": 0,
+    "downvotes": 0
+  },
+  {
+    "id": 2,
+    "timestamp": "2026-01-06T14:02:02.427023",
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.006
+    },
+    "actual_condition": "icy",
+    "predicted_condition": "minimal",
+    "predicted_probability": 0.15,
+    "user_comment": "Test report for validation",
+    "metadata": {},
+    "upvotes": 0,
+    "downvotes": 0
+  },
+  {
+    "id": 3,
+    "timestamp": "2026-01-06T14:08:58.171801",
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.006
+    },
+    "actual_condition": "icy",
+    "predicted_condition": "high",
+    "predicted_probability": 0.616,
+    "user_comment": "Black ice confirmed on I-95 Bridge, Exit 42 at 4:30 AM. Very dangerous!",
+    "metadata": {},
+    "upvotes": 0,
+    "downvotes": 0
+  }
+]
