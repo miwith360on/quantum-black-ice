@@ -28,6 +28,7 @@ from quantum_predictor import QuantumBlackIcePredictor
 from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
 from road_risk_analyzer import RoadRiskAnalyzer
+from mapbox_service import MapboxService
 from traffic_monitor import TrafficMonitor
 from satellite_service import SatelliteService
 from openmeteo_service import OpenMeteoService
@@ -196,6 +197,7 @@ road_analyzer = RoadRiskAnalyzer()
 traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
 satellite_service = SatelliteService()
 route_monitor = RouteMonitor(weather_service, predictor)
+mapbox_service = MapboxService(api_token=os.getenv('MAPBOX_API_KEY'))
 
 # Initialize RWIS and Precipitation services for real-world data
 rwis_service = RWISService()
@@ -564,6 +566,150 @@ def save_route():
         )
         return jsonify({'route_id': route_id, 'message': 'Route saved successfully'})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+# ==================== MAPBOX ROUTING ENDPOINTS ====================
+
+@app.route('/api/mapbox/directions', methods=['GET'])
+@limiter.limit("50 per hour")
+def mapbox_directions():
+    """Get optimized route with hazard analysis using Mapbox"""
+    try:
+        start_lat = request.args.get('start_lat', type=float)
+        start_lon = request.args.get('start_lon', type=float)
+        end_lat = request.args.get('end_lat', type=float)
+        end_lon = request.args.get('end_lon', type=float)
+        mode = request.args.get('mode', default='driving', type=str)
+        
+        if not all([start_lat, start_lon, end_lat, end_lon]):
+            return jsonify({'error': 'Missing coordinates'}), 400
+        
+        # Get base routes from Mapbox
+        routes = mapbox_service.get_directions(start_lat, start_lon, end_lat, end_lon, mode)
+        
+        # Enhance each route with black ice hazard analysis
+        for route in routes:
+            # Sample 5 points along the route to check for hazards
+            if route.get('geometry') and route['geometry'].get('coordinates'):
+                coords = route['geometry']['coordinates']
+                sample_points = [coords[i] for i in range(0, len(coords), max(1, len(coords)//5))]
+                
+                hazard_scores = []
+                for lon, lat in sample_points:
+                    try:
+                        weather = weather_service.get_current_weather(lat, lon)
+                        prediction = predictor.predict(weather)
+                        hazard_scores.append(prediction.get('black_ice_risk_score', 0.5))
+                    except:
+                        hazard_scores.append(0.5)
+                
+                route['hazard_score'] = sum(hazard_scores) / len(hazard_scores) if hazard_scores else 0.5
+                
+                if route['hazard_score'] > 0.7:
+                    route['recommendation'] = '⚠️ High hazard - Use alternative route'
+                    route['risk_level'] = 'high'
+                elif route['hazard_score'] > 0.4:
+                    route['recommendation'] = '⚡ Moderate hazard - Drive carefully'
+                    route['risk_level'] = 'moderate'
+                else:
+                    route['recommendation'] = '✅ Low hazard - Safe route'
+                    route['risk_level'] = 'low'
+        
+        # Sort by hazard score (safest first)
+        routes.sort(key=lambda r: r.get('hazard_score', 1.0))
+        
+        return jsonify({
+            'success': True,
+            'routes': routes,
+            'safest_route': routes[0] if routes else None,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Mapbox directions error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/mapbox/hazard-layer', methods=['POST'])
+@limiter.limit("30 per hour")
+def mapbox_hazard_layer():
+    """Generate GeoJSON hazard layer for map visualization"""
+    try:
+        data = request.get_json(force=True)
+        hazard_zones = data.get('hazard_zones', [])
+        
+        # Create hazard GeoJSON layer
+        geojson = mapbox_service.add_hazard_layer(hazard_zones)
+        
+        return jsonify({
+            'success': True,
+            'geojson': geojson,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Hazard layer error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/mapbox/safe-zone', methods=['GET'])
+@limiter.limit("30 per hour")
+def mapbox_safe_zone():
+    """Get area reachable within X minutes with safe conditions"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        minutes = request.args.get('minutes', default=30, type=int)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'Latitude and longitude required'}), 400
+        
+        # Get isochrone (reachable area)
+        isochrone = mapbox_service.get_isochrone(lat, lon, minutes)
+        
+        if isochrone:
+            return jsonify({
+                'success': True,
+                'isochrone': isochrone,
+                'center': {'lat': lat, 'lon': lon},
+                'minutes': minutes
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Isochrone not available'}), 400
+            
+    except Exception as e:
+        logger.error(f"Safe zone error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/mapbox/matrix', methods=['POST'])
+@limiter.limit("20 per hour")
+def mapbox_matrix():
+    """Get travel times between multiple points (useful for routing"""
+    try:
+        data = request.get_json(force=True)
+        coordinates = data.get('coordinates', [])  # List of [lat, lon] pairs
+        
+        if len(coordinates) < 2:
+            return jsonify({'error': 'At least 2 coordinates required'}), 400
+        
+        # Convert to (lon, lat) format for Mapbox
+        coords = [(lon, lat) for lat, lon in coordinates]
+        
+        matrix = mapbox_service.get_matrix(coords)
+        
+        if matrix:
+            return jsonify({
+                'success': True,
+                'matrix': matrix
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Matrix not available'}), 400
+            
+    except Exception as e:
+        logger.error(f"Matrix error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
