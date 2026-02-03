@@ -1,7 +1,8 @@
 """
-Quantum Black Ice Prediction System V2 - 20 QUBIT SYSTEM
-Advanced quantum computing for hyper-local micro-climate predictions
-Predicts ice at specific GPS coordinates down to the minute
+Quantum Simulator V2 - 20 QUBIT SIMULATION
+Advanced quantum-inspired algorithms for hyper-local micro-climate predictions
+Simulated on classical hardware using Qiskit Aer
+Note: Not running on real quantum computer hardware
 """
 
 import numpy as np
@@ -16,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 class QuantumBlackIcePredictorV2:
     """
-    UPGRADED 20-Qubit Quantum System for Ultra-Precise Black Ice Prediction
+    20-Qubit Quantum SIMULATOR for Black Ice Prediction
     
-    Quantum Architecture:
-    - 20 qubits = 2^20 = 1,048,576 possible states simultaneously
-    - Massively increased computational space for micro-climate modeling
-    - Hyper-local predictions accurate to specific road segments
+    Simulated Quantum Architecture (Classical Hardware):
+    - 20 simulated qubits = 2^20 = 1,048,576 possible states
+    - Quantum-inspired probabilistic modeling
+    - Uses Qiskit Aer simulator, not real quantum hardware
     """
     
     def __init__(self):
@@ -61,8 +62,8 @@ class QuantumBlackIcePredictorV2:
         self.circuit_depth = 24  # More gates for complex interactions
         self.entanglement_layers = 4  # Deeper entanglement
         
-        logger.info(f"⚛️ Quantum V2: {self.num_qubits} qubits initialized")
-        logger.info(f"🔬 Quantum Volume: {2**self.num_qubits:,} states")
+        logger.info(f"⚛️ Quantum Simulator V2: {self.num_qubits} qubits (simulated)")
+        logger.info(f"🔬 Simulated State Space: {2**self.num_qubits:,} states")
         logger.info(f"📊 Circuit Depth: {self.circuit_depth} gates")
     
     def predict(self, weather_data: Dict, location_context: Dict = None) -> Dict:
@@ -76,7 +77,7 @@ class QuantumBlackIcePredictorV2:
         Returns:
             Dict with probability, risk level, and all 20 qubit states
         """
-        logger.info("⚛️ Starting 20-qubit quantum prediction...")
+        logger.info("⚛️ Starting 20-qubit quantum simulation...")
         
         # Encode weather + location into 20-qubit state
         risk_factors = self.encode_advanced_state(weather_data, location_context)

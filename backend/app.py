@@ -982,7 +982,7 @@ def quantum_compare_versions():
 
 @app.route('/api/bifi/calculate', methods=['POST'])
 def calculate_bifi():
-    """Calculate Black Ice Formation Index (BIFI)"""
+    """Calculate Black Ice Formation Index (BIFI) with ML enhancement"""
     data = request.json
     
     if not data or 'weather_data' not in data:
@@ -991,19 +991,84 @@ def calculate_bifi():
     try:
         weather_data = data['weather_data']
         
-        # Calculate BIFI
-        bifi_result = bifi_calculator.calculate(weather_data)
-        
-        # Generate interpretation
-        interpretation = f"{bifi_result['risk_level']}: {bifi_result['risk_description']}"
+        # Use ML-enhanced BIFI if available
+        try:
+            from bifi_calculator_v3 import MLEnhancedBIFI
+            ml_bifi = MLEnhancedBIFI()
+            bifi_result = ml_bifi.calculate(weather_data)
+        except:
+            # Fallback to v2
+            bifi_result = bifi_calculator.calculate(weather_data)
         
         return jsonify({
             'success': True,
             'bifi': bifi_result,
-            'interpretation': interpretation
+            'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
         logger.error(f"BIFI calculation error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bifi/forecast', methods=['POST'])
+def bifi_forecast():
+    """Get 12-hour BIFI forecast"""
+    data = request.json
+    
+    if not data or 'hourly_weather' not in data:
+        return jsonify({'error': 'Hourly weather data required'}), 400
+    
+    try:
+        from bifi_calculator_v3 import MLEnhancedBIFI
+        ml_bifi = MLEnhancedBIFI()
+        
+        hourly_weather = data['hourly_weather']
+        forecast = ml_bifi.forecast_12h(hourly_weather)
+        
+        # Find peak danger time
+        peak = max(forecast, key=lambda x: x['bifi_score'])
+        
+        return jsonify({
+            'success': True,
+            'forecast': forecast,
+            'peak_danger': {
+                'hour': peak['hour'],
+                'timestamp': peak['timestamp'],
+                'bifi_score': peak['bifi_score'],
+                'warning': peak.get('warning', 'Monitor conditions')
+            }
+        })
+    except Exception as e:
+        logger.error(f"BIFI forecast error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bifi/feedback', methods=['POST'])
+def bifi_feedback():
+    """Learn from user ground-truth report"""
+    data = request.json
+    
+    required = ['prediction', 'actual', 'weather']
+    if not all(k in data for k in required):
+        return jsonify({'error': f'Required fields: {required}'}), 400
+    
+    try:
+        from bifi_calculator_v3 import MLEnhancedBIFI
+        ml_bifi = MLEnhancedBIFI()
+        
+        ml_bifi.learn_from_feedback(
+            prediction=data['prediction'],
+            actual=data['actual'],
+            weather=data['weather']
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Feedback recorded. System will improve accuracy.',
+            'training_samples': len(ml_bifi.accuracy_history)
+        })
+    except Exception as e:
+        logger.error(f"BIFI feedback error: {e}")
         return jsonify({'error': str(e)}), 500
 
 

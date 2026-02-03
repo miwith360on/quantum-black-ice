@@ -1,7 +1,8 @@
 """
-Quantum Black Ice Prediction System
-Uses quantum computing for probabilistic weather predictions
-Combines quantum superposition with classical ML for enhanced accuracy
+Quantum Simulator for Black Ice Prediction
+Uses quantum-inspired algorithms simulated on classical computers
+Probabilistic weather predictions using quantum circuit simulation
+Note: This is a simulator, not running on real quantum hardware
 """
 
 import numpy as np
@@ -13,13 +14,15 @@ logger = logging.getLogger(__name__)
 
 class QuantumBlackIcePredictor:
     """
-    Quantum-enhanced black ice prediction using qubits and superposition
+    Quantum Simulator for black ice prediction using Qiskit
+    
+    Note: This is a SIMULATION on classical hardware, not real quantum computing
     
     Concept:
-    - Uses quantum superposition to model uncertainty in weather conditions
+    - Simulates quantum superposition to model uncertainty in weather conditions
     - Multiple qubits represent different risk factors simultaneously
-    - Quantum interference patterns reveal probability distributions
-    - Entanglement captures correlations between weather variables
+    - Quantum-inspired interference patterns reveal probability distributions
+    - Simulated entanglement captures correlations between weather variables
     """
     
     def __init__(self):
@@ -38,7 +41,7 @@ class QuantumBlackIcePredictor:
         # Qubit 8: Visibility risk (NEW)
         # Qubit 9: Pressure change risk (NEW)
         
-        logger.info("Quantum Black Ice Predictor initialized with {} qubits".format(self.num_qubits))
+        logger.info("Quantum Simulator initialized with {} qubits (simulated on classical hardware)".format(self.num_qubits))
     
     def encode_weather_to_quantum_state(self, weather_data):
         """
