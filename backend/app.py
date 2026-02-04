@@ -35,6 +35,7 @@ from openmeteo_service import OpenMeteoService
 from gps_context_system import GPSContextSystem
 from rwis_service import RWISService
 from precipitation_type_service import PrecipitationTypeService
+from road_surface_temp_model import RoadSurfaceTemperatureModel
 
 # Lazy-loaded services (avoid heavy imports at startup)
 _lazy_services = {}
@@ -198,6 +199,7 @@ traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
 satellite_service = SatelliteService()
 route_monitor = RouteMonitor(weather_service, predictor)
 mapbox_service = MapboxService(api_token=os.getenv('MAPBOX_API_KEY'))
+road_temp_model = RoadSurfaceTemperatureModel()
 
 # Initialize RWIS and Precipitation services for real-world data
 rwis_service = RWISService()
@@ -710,6 +712,94 @@ def mapbox_matrix():
             
     except Exception as e:
         logger.error(f"Matrix error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== ROAD SURFACE TEMPERATURE ENDPOINTS ====================
+
+@app.route('/api/road-temp/estimate', methods=['GET'])
+@limiter.limit("100 per hour")
+def estimate_road_temp():
+    """Estimate road surface temperature using heat balance model"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        air_temp = request.args.get('temp', type=float)
+        cloud_cover = request.args.get('clouds', default=50, type=int)
+        humidity = request.args.get('humidity', default=70, type=int)
+        wind_speed = request.args.get('wind', default=5, type=float)
+        pavement = request.args.get('pavement', default='asphalt')
+        
+        if not all([lat, lon, air_temp]):
+            return jsonify({'error': 'lat, lon, temp required'}), 400
+        
+        # Get dew point if available, otherwise estimate
+        dew_point = request.args.get('dew_point', type=float)
+        if not dew_point:
+            dew_point = air_temp - ((100 - humidity) / 5)
+        
+        result = road_temp_model.estimate_surface_temp(
+            air_temp=air_temp,
+            lat=lat,
+            lon=lon,
+            cloud_cover=cloud_cover,
+            humidity=humidity,
+            dew_point=dew_point,
+            wind_speed=wind_speed,
+            pavement_type=pavement
+        )
+        
+        freshness_tracker.update_timestamp('road_temp_model')
+        
+        return jsonify({
+            'success': True,
+            'result': result,
+            'timestamp': datetime.now().isoformat(),
+            'note': 'Estimated using heat balance model (no RWIS sensor)'
+        })
+        
+    except Exception as e:
+        logger.error(f"Road temp estimate error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/road-temp/forecast-12h', methods=['POST'])
+@limiter.limit("30 per hour")
+def road_temp_forecast():
+    """Forecast road surface temperature for next 12 hours"""
+    try:
+        data = request.get_json(force=True)
+        
+        lat = data.get('lat')
+        lon = data.get('lon')
+        hourly_weather = data.get('hourly_weather', [])
+        pavement = data.get('pavement_type', 'asphalt')
+        
+        if not lat or not lon or not hourly_weather:
+            return jsonify({'error': 'lat, lon, hourly_weather required'}), 400
+        
+        # Forecast surface temps
+        forecast = road_temp_model.forecast_surface_temp_12h(
+            hourly_weather, lat, lon, pavement
+        )
+        
+        # Find peak black ice risk hour
+        peak_risk = max(forecast, key=lambda x: x['probability'])
+        
+        # Count dangerous hours
+        dangerous_hours = [h for h in forecast if h['probability'] > 0.6]
+        
+        return jsonify({
+            'success': True,
+            'forecast': forecast,
+            'peak_risk': peak_risk,
+            'dangerous_hours': len(dangerous_hours),
+            'summary': f"Road surface will reach {min(f['surface_temp'] for f in forecast):.0f}°F. " +
+                      f"Black ice risk highest at hour {peak_risk['hour']} ({peak_risk['timestamp']})"
+        })
+        
+    except Exception as e:
+        logger.error(f"Road temp forecast error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
