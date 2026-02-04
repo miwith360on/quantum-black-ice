@@ -809,6 +809,133 @@ def road_temp_forecast():
         return jsonify({'error': str(e)}), 500
 
 
+# ==================== HEAT BALANCE SIMPLE ENDPOINT ====================
+
+@app.route('/api/heat-balance', methods=['POST'])
+@limiter.limit("100 per hour")
+def heat_balance():
+    """
+    Simple heat balance calculation endpoint
+    Accepts: air_temp, wind_speed, cloud_cover, is_daytime
+    Returns: estimated_road_temp, risk_level, explanation
+    """
+    try:
+        data = request.get_json(force=True)
+        
+        # Extract required parameters
+        air_temp = data.get('air_temp')
+        wind_speed = data.get('wind_speed', 5)  # Default 5 mph
+        cloud_cover = data.get('cloud_cover', 50)  # 0-100, default 50%
+        is_daytime = data.get('is_daytime', True)
+        
+        if air_temp is None:
+            return jsonify({'error': 'air_temp is required'}), 400
+        
+        air_temp = float(air_temp)
+        wind_speed = float(wind_speed)
+        cloud_cover = float(cloud_cover)
+        is_daytime = bool(is_daytime)
+        
+        # ========== HEAT BALANCE FORMULA ==========
+        # Road Surface Temp = Air Temp + Solar Heat - Radiational Cooling + Wind Effect + Cloud Effect
+        
+        road_surface_temp = air_temp
+        components = {}
+        
+        # 1. SOLAR HEAT GAIN (daytime only)
+        solar_gain = 0
+        if is_daytime:
+            # Clear sky: +8°F to +12°F heating
+            # Cloudy sky: +2°F to +4°F heating
+            solar_gain = 10 * (1 - cloud_cover / 100)  # Max 10°F on clear day
+            road_surface_temp += solar_gain
+        
+        components['solar_gain'] = round(solar_gain, 2)
+        
+        # 2. RADIATIONAL COOLING (nighttime is stronger)
+        radiational_cooling = 0
+        if not is_daytime:
+            # At night, road loses heat via radiation to atmosphere
+            # Cloud cover reduces this cooling (clouds trap heat)
+            cloud_factor = 1 - (cloud_cover / 100)  # Clear sky = 1.0, cloudy = 0.0
+            radiational_cooling = 3 * cloud_factor  # Max 3°F cooling on clear night
+            road_surface_temp -= radiational_cooling
+        
+        components['radiational_cooling'] = round(radiational_cooling, 2)
+        
+        # 3. WIND EFFECT (increases heat loss)
+        wind_effect = -(wind_speed / 10)  # Higher wind = more cooling, -0.5°F to -2°F
+        road_surface_temp += wind_effect
+        
+        components['wind_effect'] = round(wind_effect, 2)
+        
+        # 4. MOISTURE/HUMIDITY EFFECT (if near freezing, moisture can affect risk)
+        dew_point = data.get('dew_point', air_temp - 5)  # Estimate if not provided
+        dew_point = float(dew_point)
+        
+        # If surface temp approaches dew point, condensation risk increases
+        temp_above_dewpoint = road_surface_temp - dew_point
+        
+        # ========== DETERMINE RISK LEVEL ==========
+        risk_level = 'MINIMAL'
+        black_ice_probability = 0.0
+        color_code = 'green'
+        
+        if road_surface_temp <= 32:
+            # Surface is at or below freezing
+            if 28 <= road_surface_temp < 32:
+                risk_level = 'HIGH'
+                black_ice_probability = 0.6 + (0.3 * (32 - road_surface_temp) / 4)
+                color_code = 'red'
+            elif road_surface_temp < 28:
+                risk_level = 'EXTREME'
+                black_ice_probability = 0.85 + (0.15 * (1 - (road_surface_temp - 20) / 12))
+                color_code = 'darkred'
+            else:  # 32-33°F range
+                risk_level = 'MODERATE'
+                black_ice_probability = 0.4
+                color_code = 'orange'
+        elif 32 < road_surface_temp <= 35:
+            risk_level = 'LOW'
+            black_ice_probability = 0.1
+            color_code = 'yellow'
+        else:
+            risk_level = 'MINIMAL'
+            black_ice_probability = 0.0
+            color_code = 'green'
+        
+        # Cap probability at 1.0
+        black_ice_probability = min(1.0, max(0.0, black_ice_probability))
+        
+        # ========== BUILD EXPLANATION ==========
+        explanation = f"Air temp: {air_temp:.0f}°F | "
+        if is_daytime:
+            explanation += f"Daytime solar heating: +{solar_gain:.1f}°F | "
+        else:
+            explanation += f"Nighttime radiational cooling: -{radiational_cooling:.1f}°F | "
+        
+        explanation += f"Wind effect: {wind_effect:.1f}°F | "
+        explanation += f"Estimated road temp: {road_surface_temp:.1f}°F"
+        
+        return jsonify({
+            'success': True,
+            'air_temp': air_temp,
+            'estimated_road_temp': round(road_surface_temp, 1),
+            'risk_level': risk_level,
+            'black_ice_probability': round(black_ice_probability, 2),
+            'color_code': color_code,
+            'components': components,
+            'explanation': explanation,
+            'is_daytime': is_daytime,
+            'wind_speed': wind_speed,
+            'cloud_cover': cloud_cover
+        })
+        
+    except Exception as e:
+        logger.error(f"Heat balance error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ==================== NEW: AI/ML ENDPOINTS ====================
 
 @app.route('/api/ml/predict', methods=['POST'])
