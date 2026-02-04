@@ -2216,11 +2216,8 @@ if __name__ == '__main__':
     is_production = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('HEROKU')
     
     print(f"🌨️  Quantum Black Ice Detection System starting on port {port}")
-    print(f"🤖 AI/ML Model: {'Loaded' if ml_predictor.is_trained else 'Not trained yet'}")
-    print(f"🤖 ML Road Temp: {'Trained' if ml_road_temp.is_trained else 'Not trained (using physics-based)'}")
     print(f"⚛️  Quantum V1: 10-Qubit System Active")
     print(f"⚛️  Quantum V2: 20-Qubit System Active (HYPER-LOCAL!)")
-    print(f"📡 IoT Sensor Network: {iot_network.get_network_status()['active_sensors']} sensors active")
     print(f"🛰️  Radar Service: Active")
     print(f"🛰️  NASA Satellite: Active (MODIS/VIIRS Thermal)")
     print(f"🌍 OpenMeteo: Active (Road Surface Temp)")

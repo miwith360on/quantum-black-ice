@@ -460,24 +460,46 @@
             showLoading(true);
             
             try {
+                const lat = parseFloat(document.getElementById('latitude').value);
+                const lon = parseFloat(document.getElementById('longitude').value);
+                const airTemp = parseFloat(document.getElementById('airTemp').value);
+                const humidity = parseFloat(document.getElementById('humidity').value);
+                const dewPoint = parseFloat(document.getElementById('dewPoint').value);
+                const cloudCover = parseInt(document.getElementById('cloudCover').value);
+                const windSpeed = parseFloat(document.getElementById('windSpeed').value);
+                const pavementType = document.getElementById('pavementType').value;
+                
                 const params = new URLSearchParams({
-                    lat: parseFloat(document.getElementById('latitude').value),
-                    lon: parseFloat(document.getElementById('longitude').value),
-                    temp: parseFloat(document.getElementById('airTemp').value),
-                    humidity: parseFloat(document.getElementById('humidity').value),
-                    dew_point: parseFloat(document.getElementById('dewPoint').value),
-                    clouds: parseInt(document.getElementById('cloudCover').value),
-                    wind: parseFloat(document.getElementById('windSpeed').value),
-                    pavement: document.getElementById('pavementType').value
+                    lat: lat,
+                    lon: lon,
+                    temp: airTemp,
+                    humidity: humidity,
+                    dew_point: dewPoint,
+                    clouds: cloudCover,
+                    wind: windSpeed,
+                    pavement: pavementType
                 });
                 
-                const response = await fetch(`${API_BASE_URL}/api/road-temp/estimate?${params}`);
+                console.log('Calling:', `${API_BASE_URL}/api/road-temp/estimate?${params}`);
+                
+                const response = await fetch(`${API_BASE_URL}/api/road-temp/estimate?${params}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                console.log('Response:', data);
                 
                 if (data.success) {
                     displayResults(data.result);
                 } else {
-                    alert('Error: ' + data.error);
+                    alert('Error: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -505,10 +527,10 @@
                 `Black Ice Probability: ${(result.black_ice_probability * 100).toFixed(0)}%`;
             
             // Display components
-            document.getElementById('solarGain').textContent = result.components.solar_gain + '°F';
-            document.getElementById('cooling').textContent = '-' + result.components.radiational_cooling + '°F';
-            document.getElementById('windAdj').textContent = result.components.wind_adjustment + '°F';
-            document.getElementById('groundHeat').textContent = '+' + result.components.ground_heat + '°F';
+            document.getElementById('solarGain').textContent = result.components.solar_gain.toFixed(1) + '°F';
+            document.getElementById('cooling').textContent = '-' + result.components.radiational_cooling.toFixed(1) + '°F';
+            document.getElementById('windAdj').textContent = (result.components.wind_adjustment > 0 ? '+' : '') + result.components.wind_adjustment.toFixed(1) + '°F';
+            document.getElementById('groundHeat').textContent = '+' + result.components.ground_heat.toFixed(1) + '°F';
             
             // Display explanation
             document.getElementById('explanation').textContent = result.explanation;
@@ -518,81 +540,90 @@
             showLoading(true);
             
             try {
-                // For demo, generate mock hourly forecast
-                const hourlyForecast = generateMockForecast();
+                const lat = parseFloat(document.getElementById('latitude').value);
+                const lon = parseFloat(document.getElementById('longitude').value);
+                const pavementType = document.getElementById('pavementType').value;
+                
+                // Generate hourly weather forecast
+                const hourlyWeather = generateHourlyWeatherForecast();
+                
+                console.log('Forecasting with:', { lat, lon, pavementType, hourly_weather: hourlyWeather });
                 
                 const response = await fetch(`${API_BASE_URL}/api/road-temp/forecast-12h`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({
-                        lat: parseFloat(document.getElementById('latitude').value),
-                        lon: parseFloat(document.getElementById('longitude').value),
-                        hourly_weather: hourlyForecast,
-                        pavement_type: document.getElementById('pavementType').value
+                        lat: lat,
+                        lon: lon,
+                        pavement_type: pavementType,
+                        hourly_weather: hourlyWeather
                     })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                console.log('Forecast Response:', data);
                 
                 if (data.success) {
                     displayForecast(data.forecast);
+                    // Show summary
+                    if (data.summary) {
+                        document.getElementById('explanationBox').style.display = 'block';
+                        document.getElementById('explanation').textContent = data.summary;
+                    }
                 } else {
-                    alert('Error: ' + data.error);
+                    alert('Error: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error:', error);
-                // Show demo forecast
-                const demo = generateDemoForecast();
-                displayForecast(demo);
+                alert('Error forecasting: ' + error.message);
             } finally {
                 showLoading(false);
             }
         }
         
-        function generateMockForecast() {
-            const forecast = [];
-            let baseTemp = parseFloat(document.getElementById('airTemp').value);
+        function generateHourlyWeatherForecast() {
+            const baseTemp = parseFloat(document.getElementById('airTemp').value);
+            const baseHumidity = parseInt(document.getElementById('humidity').value);
+            const baseCloudCover = parseInt(document.getElementById('cloudCover').value);
+            const baseWind = parseFloat(document.getElementById('windSpeed').value);
+            const baseDew = parseFloat(document.getElementById('dewPoint').value);
             const now = new Date();
             
+            const forecast = [];
+            
             for (let i = 0; i < 12; i++) {
-                const hour = (now.getHours() + i) % 24;
-                let temp = baseTemp;
+                const hour = new Date(now.getTime() + i * 3600000);
+                const hourOfDay = hour.getHours();
                 
-                // Simulate temperature curve
-                if (hour >= 4 && hour <= 14) {
-                    // Warming during day
-                    temp += Math.sin((hour - 4) / 10 * Math.PI) * 8;
-                } else {
-                    // Cooling at night
-                    temp -= 5;
+                // Simulate realistic hourly variations
+                let tempVariation = 0;
+                let humidityVariation = 0;
+                
+                // Temperature dip at night (coldest around 4-5 AM)
+                if (hourOfDay >= 22 || hourOfDay < 6) {
+                    tempVariation = -5 + Math.sin((hourOfDay + 2) / 12 * Math.PI) * 3;
+                    humidityVariation = 15;
+                } else if (hourOfDay >= 14 && hourOfDay < 16) {
+                    // Warmest around 2-4 PM
+                    tempVariation = 5;
+                    humidityVariation = -10;
                 }
                 
                 forecast.push({
-                    temperature: temp,
-                    humidity: 70 + Math.random() * 20,
-                    dew_point: temp - 5,
-                    wind_speed: 5 + Math.random() * 10,
-                    clouds: 50 + Math.random() * 30
+                    temperature: baseTemp + tempVariation,
+                    humidity: Math.min(100, Math.max(0, baseHumidity + humidityVariation)),
+                    dew_point: baseDew + tempVariation * 0.8,
+                    wind_speed: baseWind + (Math.random() * 4 - 2), // ±2 mph variation
+                    clouds: Math.min(100, Math.max(0, baseCloudCover + Math.random() * 20 - 10))
                 });
             }
             
-            return forecast;
-        }
-        
-        function generateDemoForecast() {
-            const forecast = [];
-            for (let i = 0; i < 12; i++) {
-                const temp = 32 - Math.sin(i / 6 * Math.PI) * 8;
-                forecast.push({
-                    hour: i,
-                    timestamp: new Date(Date.now() + i * 3600000).toISOString(),
-                    surface_temp: temp,
-                    air_temp: temp + 2,
-                    black_ice_risk: temp < 32 ? 'HIGH' : 'LOW',
-                    probability: Math.max(0.1, (32 - temp) / 20),
-                    is_night: true
-                });
-            }
             return forecast;
         }
         
@@ -605,35 +636,51 @@
             const temps = [];
             const risks = [];
             const hours = [];
+            const airTemps = [];
             
-            forecast.forEach(h => {
-                const hour = h.hour || 0;
-                const time = new Date(h.timestamp || Date.now());
-                const timeStr = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            forecast.forEach((h, idx) => {
+                const surfaceTemp = h.surface_temp || h.estimated_surface_temp || 32;
+                const airTemp = h.air_temp || 32;
+                const timestamp = h.timestamp ? new Date(h.timestamp) : new Date(Date.now() + idx * 3600000);
+                const timeStr = timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const probability = h.probability || 0;
                 
-                temps.push(h.surface_temp);
-                risks.push((h.probability || 0) * 100);
-                hours.push(hour + ':00');
+                // Determine risk level
+                let riskText = 'MINIMAL';
+                let riskClass = 'risk-low';
+                if (surfaceTemp <= 32 && probability > 0.7) {
+                    riskText = 'EXTREME';
+                    riskClass = 'risk-high';
+                } else if (surfaceTemp <= 32 && probability > 0.5) {
+                    riskText = 'HIGH';
+                    riskClass = 'risk-high';
+                } else if (surfaceTemp <= 33 && probability > 0.3) {
+                    riskText = 'MODERATE';
+                    riskClass = 'risk-moderate';
+                }
                 
-                const riskClass = h.black_ice_risk?.toLowerCase() === 'high' ? 'risk-high' : 'risk-low';
+                temps.push(surfaceTemp);
+                airTemps.push(airTemp);
+                risks.push(probability * 100);
+                hours.push(`${idx}h`);
                 
                 body.innerHTML += `
                     <tr>
-                        <td>${hour}</td>
+                        <td>${idx}</td>
                         <td>${timeStr}</td>
-                        <td>${h.air_temp.toFixed(1)}°F</td>
-                        <td>${h.surface_temp.toFixed(1)}°F</td>
-                        <td><span class="${riskClass}">${h.black_ice_risk}</span></td>
-                        <td>${((h.probability || 0) * 100).toFixed(0)}%</td>
+                        <td>${airTemp.toFixed(1)}°F</td>
+                        <td>${surfaceTemp.toFixed(1)}°F</td>
+                        <td><span class="${riskClass}">${riskText}</span></td>
+                        <td>${(probability * 100).toFixed(0)}%</td>
                     </tr>
                 `;
             });
             
             // Update chart
-            updateChart(hours, temps, risks);
+            updateChart(hours, temps, airTemps, risks);
         }
         
-        function updateChart(labels, temps, risks) {
+        function updateChart(labels, surfaceTemps, airTemps, risks) {
             const ctx = document.getElementById('forecastChart').getContext('2d');
             
             if (forecastChart) {
@@ -647,22 +694,32 @@
                     datasets: [
                         {
                             label: 'Road Surface Temp (°F)',
-                            data: temps,
+                            data: surfaceTemps,
                             borderColor: '#f5576c',
                             backgroundColor: 'rgba(245, 87, 108, 0.1)',
                             borderWidth: 3,
                             fill: true,
                             tension: 0.4,
                             pointRadius: 5,
-                            pointBackgroundColor: '#f5576c'
+                            pointBackgroundColor: '#f5576c',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Air Temperature (°F)',
+                            data: airTemps,
+                            borderColor: '#667eea',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 3,
+                            yAxisID: 'y'
                         },
                         {
                             label: 'Black Ice Risk (%)',
                             data: risks,
-                            borderColor: '#667eea',
-                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderColor: '#ff6b6b',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
                             borderWidth: 2,
-                            borderDash: [5, 5],
                             yAxisID: 'y1'
                         }
                     ]
@@ -672,21 +729,26 @@
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { position: 'top' }
+                        legend: { position: 'top' },
+                        filler: { propagate: true }
                     },
                     scales: {
                         y: {
                             type: 'linear',
                             display: true,
                             position: 'left',
-                            title: { display: true, text: 'Temperature (°F)' }
+                            title: { display: true, text: 'Temperature (°F)' },
+                            min: 25,
+                            max: 45
                         },
                         y1: {
                             type: 'linear',
                             display: true,
                             position: 'right',
-                            title: { display: true, text: 'Risk %' },
-                            grid: { drawOnChartArea: false }
+                            title: { display: true, text: 'Black Ice Risk (%)' },
+                            grid: { drawOnChartArea: false },
+                            min: 0,
+                            max: 100
                         }
                     }
                 }
@@ -697,9 +759,11 @@
             document.getElementById('loading').style.display = show ? 'block' : 'none';
         }
         
-        // Demo on load
+        // Auto-estimate on load
         window.addEventListener('load', () => {
-            estimateTemp();
+            setTimeout(() => {
+                estimateTemp();
+            }, 500);
         });
     </script>
 </body>
