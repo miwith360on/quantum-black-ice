@@ -1735,6 +1735,13 @@ function updateBridgeDisplay(bridgeData) {
     const factorsEl = document.getElementById('bridge-factors');
     const warningEl = document.getElementById('bridge-warning');
     
+    // NOTE: bridge_freeze_temp_f represents the WATCH ZONE threshold (typically 35-45°F depending on conditions),
+    // NOT the physical freezing point. This is the temperature at which we enter a high-risk zone for black ice formation
+    // on bridges. Bridges are at risk at higher temps than regular roads because:
+    // - Reduced thermal mass (thinner surface area)
+    // - Wind exposure above and below the structure
+    // - Moisture condensation patterns
+    // The actual threshold varies based on wind, humidity, bridge materials, etc.
     freezeTempEl.textContent = `${bridgeData.bridge_freeze_temp_f.toFixed(0)}°F`;
     
     const tempDiff = bridgeData.bridge_freeze_temp_f - 32;

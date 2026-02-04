@@ -381,7 +381,14 @@
                 
                 <div class="bridge-freeze-display">
                     <div class="bridge-temp-main">
-                        <div class="bridge-label">Bridges freeze at:</div>
+                        <!-- NOTE: This displays the modeled threshold temperature at which bridges enter a high-risk zone for black ice formation.
+                             This is NOT the physical freezing point of water (32°F). Bridges can form ice at higher temperatures due to:
+                             - Thermal mass differences (thin pavement loses heat faster)
+                             - Wind exposure above/below road
+                             - Moisture accumulation patterns
+                             - Earlier dew point condensation on surface
+                             The actual temperature shown is calculated based on current weather conditions. -->
+                        <div class="bridge-label">Bridge Watch Zone:</div>
                         <div class="bridge-freeze-temp" id="bridge-freeze-temp">--°F</div>
                     </div>
                     
