@@ -1352,9 +1352,72 @@ async function getRoadTemperature() {
             updateRoadTempDisplay(roadTempPayload);
         } else {
             console.warn('⚠️ Road temp payload missing expected key:', Object.keys(data));
+            // No RWIS sensors found - use heat balance model as fallback
+            await getModeledRoadTemperature();
         }
     } catch (error) {
         console.error('❌ Road temp error:', error);
+        // On error, also try heat balance model as fallback
+        await getModeledRoadTemperature();
+    }
+}
+
+// Fallback: Get modeled road temperature using heat balance formula
+async function getModeledRoadTemperature() {
+    try {
+        // Get current weather data (get from UI or use defaults)
+        const tempElement = document.getElementById('temp-text');
+        const windElement = document.getElementById('wind-text');
+        
+        const airTempText = tempElement ? tempElement.textContent.replace('°F', '').trim() : null;
+        const windText = windElement ? windElement.textContent.replace('mph', '').trim() : null;
+        
+        if (!airTempText || airTempText === '--') {
+            console.warn('⚠️ No weather data available for heat balance model');
+            return;
+        }
+        
+        const airTemp = parseFloat(airTempText);
+        const windSpeed = windText && windText !== '--' ? parseFloat(windText) : 5;
+        
+        // Determine if daytime (simple approximation - could be enhanced)
+        const hour = new Date().getHours();
+        const isDatetime = hour >= 6 && hour <= 18;
+        
+        console.log(`📊 Calling heat balance model: temp=${airTemp}F, wind=${windSpeed}mph, daytime=${isDatetime}`);
+        
+        const heatBalanceResponse = await fetch(`${API_BASE}/api/heat-balance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                air_temp: airTemp,
+                wind_speed: windSpeed,
+                cloud_cover: 50,  // Default assumption
+                is_daytime: isDatetime
+            })
+        });
+        
+        if (!heatBalanceResponse.ok) {
+            throw new Error(`Heat balance HTTP ${heatBalanceResponse.status}`);
+        }
+        
+        const heatData = await heatBalanceResponse.json();
+        console.log('🌡️ Heat balance model result:', heatData);
+        
+        if (heatData.success) {
+            // Create modeled payload matching the updateRoadTempDisplay format
+            const modeledPayload = {
+                road_temp_f: heatData.estimated_road_temp,
+                air_temp_f: airTemp,
+                distance_miles: 0,
+                confidence: heatData.black_ice_probability > 0.7 ? 'HIGH' : heatData.black_ice_probability > 0.4 ? 'MEDIUM' : 'LOW',
+                message: `🔬 Modeled road temp (${heatData.risk_level} risk): ${heatData.explanation}`
+            };
+            
+            updateRoadTempDisplay(modeledPayload);
+        }
+    } catch (error) {
+        console.error('❌ Heat balance model error:', error);
     }
 }
 
