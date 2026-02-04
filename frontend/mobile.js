@@ -1374,6 +1374,11 @@ async function getModeledRoadTemperature() {
         
         if (!airTempText || airTempText === '--') {
             console.warn('⚠️ No weather data available for heat balance model');
+            const errorPayload = {
+                road_temp_f: null,
+                message: 'Error: No weather data available yet'
+            };
+            updateRoadTempDisplay(errorPayload);
             return;
         }
         
@@ -1385,6 +1390,8 @@ async function getModeledRoadTemperature() {
         const isDatetime = hour >= 6 && hour <= 18;
         
         console.log(`📊 Calling heat balance model: temp=${airTemp}F, wind=${windSpeed}mph, daytime=${isDatetime}`);
+        console.log(`📊 API Base URL: ${API_BASE}`);
+        console.log(`📊 Full URL: ${API_BASE}/api/heat-balance`);
         
         const heatBalanceResponse = await fetch(`${API_BASE}/api/heat-balance`, {
             method: 'POST',
@@ -1397,8 +1404,28 @@ async function getModeledRoadTemperature() {
             })
         });
         
+        console.log(`📊 Heat balance response status: ${heatBalanceResponse.status} ${heatBalanceResponse.statusText}`);
+        
         if (!heatBalanceResponse.ok) {
-            throw new Error(`Heat balance HTTP ${heatBalanceResponse.status}`);
+            // Attempt to get error details from server
+            let errorDetail = `HTTP ${heatBalanceResponse.status}: ${heatBalanceResponse.statusText}`;
+            try {
+                const errorData = await heatBalanceResponse.json();
+                if (errorData.error) {
+                    errorDetail += ` - ${errorData.error}`;
+                }
+            } catch (e) {
+                // If response isn't JSON, just use the status text
+            }
+            
+            console.error(`❌ Heat balance HTTP error: ${errorDetail}`);
+            
+            const errorPayload = {
+                road_temp_f: null,
+                message: `Error: Heat Balance API - ${errorDetail}`
+            };
+            updateRoadTempDisplay(errorPayload);
+            return;
         }
         
         const heatData = await heatBalanceResponse.json();
@@ -1415,9 +1442,40 @@ async function getModeledRoadTemperature() {
             };
             
             updateRoadTempDisplay(modeledPayload);
+        } else {
+            const errorMsg = heatData.error || 'Unknown error from server';
+            console.error(`❌ Heat balance returned error: ${errorMsg}`);
+            
+            const errorPayload = {
+                road_temp_f: null,
+                message: `Error: ${errorMsg}`
+            };
+            updateRoadTempDisplay(errorPayload);
         }
     } catch (error) {
         console.error('❌ Heat balance model error:', error);
+        
+        // Determine error type and provide specific message
+        let errorMessage = 'Unknown error';
+        
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+            errorMessage = `Network Error: Cannot reach ${API_BASE}`;
+        } else if (error instanceof SyntaxError) {
+            errorMessage = `JSON Parse Error: Invalid response from server`;
+        } else if (error.message.includes('HTTP')) {
+            errorMessage = error.message;
+        } else {
+            errorMessage = error.message || 'Unable to estimate temperature';
+        }
+        
+        console.error(`📌 Error type detected: ${errorMessage}`);
+        
+        // Display error to user
+        const errorPayload = {
+            road_temp_f: null,
+            message: `Error: ${errorMessage}`
+        };
+        updateRoadTempDisplay(errorPayload);
     }
 }
 
