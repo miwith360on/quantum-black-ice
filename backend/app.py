@@ -249,6 +249,12 @@ def index():
     from flask import send_from_directory
     return send_from_directory(static_folder, 'mobile.html')
 
+@app.route('/heat-balance')
+def heat_balance_dashboard():
+    """Serve the Heat Balance Model visualization dashboard"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, 'heat-balance-dashboard.html')
+
 @app.route('/<path:path>')
 def serve_static(path):
     """Serve static files (CSS, JS, images, etc.)"""

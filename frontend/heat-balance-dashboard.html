@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heat Balance Model - Road Surface Temperature</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            padding: 20px;
+            overflow: hidden;
+        }
+        
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            color: #666;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+        
+        .temp-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .temp-box {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .temp-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .temp-value {
+            font-size: 36px;
+            font-weight: bold;
+        }
+        
+        .temp-unit {
+            font-size: 18px;
+            opacity: 0.8;
+        }
+        
+        .risk-indicator {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .risk-indicator.minimal {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .risk-indicator.low {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .risk-indicator.moderate {
+            background: #ffe0b2;
+            color: #bf360c;
+            border-left: 4px solid #ff9800;
+        }
+        
+        .risk-indicator.high {
+            background: #ffcdd2;
+            color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+        
+        .risk-level {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .risk-probability {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .components {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .component-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+        }
+        
+        .component-item:last-child {
+            border-bottom: none;
+        }
+        
+        .component-label {
+            color: #666;
+        }
+        
+        .component-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        .forecast-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+        
+        .forecast-table th {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .forecast-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .forecast-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .risk-high {
+            color: #f44336;
+            font-weight: 600;
+        }
+        
+        .risk-moderate {
+            color: #ff9800;
+            font-weight: 600;
+        }
+        
+        .risk-low {
+            color: #4caf50;
+            font-weight: 600;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .explanation {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+            color: #0d47a1;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #00bcd4;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #00695c;
+            margin-bottom: 15px;
+        }
+        
+        @media (max-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌡️ Road Surface Temperature Model</h1>
+            <p>Heat Balance Analysis for Black Ice Prediction</p>
+        </div>
+        
+        <div class="grid">
+            <!-- Input Panel -->
+            <div class="card">
+                <h2>📍 Location & Conditions</h2>
+                
+                <div class="info-box">
+                    💡 Enter location and current weather to estimate road surface temperature
+                </div>
+                
+                <div class="input-group">
+                    <label>Latitude</label>
+                    <input type="number" id="latitude" value="42.3314" step="0.0001">
+                </div>
+                
+                <div class="input-group">
+                    <label>Longitude</label>
+                    <input type="number" id="longitude" value="-83.0458" step="0.0001">
+                </div>
+                
+                <div class="input-group">
+                    <label>Air Temperature (°F)</label>
+                    <input type="number" id="airTemp" value="34" min="-50" max="120">
+                </div>
+                
+                <div class="input-group">
+                    <label>Humidity (%)</label>
+                    <input type="number" id="humidity" value="75" min="0" max="100">
+                </div>
+                
+                <div class="input-group">
+                    <label>Dew Point (°F)</label>
+                    <input type="number" id="dewPoint" value="30" min="-50" max="100">
+                </div>
+                
+                <div class="input-group">
+                    <label>Cloud Cover (%)</label>
+                    <input type="number" id="cloudCover" value="20" min="0" max="100">
+                </div>
+                
+                <div class="input-group">
+                    <label>Wind Speed (mph)</label>
+                    <input type="number" id="windSpeed" value="8" min="0" max="100">
+                </div>
+                
+                <div class="input-group">
+                    <label>Pavement Type</label>
+                    <select id="pavementType">
+                        <option value="asphalt">Asphalt (Normal Road)</option>
+                        <option value="concrete">Concrete</option>
+                        <option value="bridge">Bridge/Overpass</option>
+                        <option value="shaded">Shaded Area</option>
+                    </select>
+                </div>
+                
+                <button onclick="estimateTemp()">🔬 Estimate Surface Temperature</button>
+                <button onclick="forecast12h()" style="margin-top: 10px; background: linear-gradient(135deg, #f093fb, #f5576c);">📈 Forecast 12 Hours</button>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Calculating...</p>
+                </div>
+            </div>
+            
+            <!-- Results Panel -->
+            <div class="card">
+                <h2>📊 Results</h2>
+                
+                <div class="temp-display" id="tempDisplay" style="display: none;">
+                    <div class="temp-box">
+                        <div class="temp-label">Air Temperature</div>
+                        <div class="temp-value" id="displayAirTemp">--</div>
+                        <div class="temp-unit">°F</div>
+                    </div>
+                    <div class="temp-box" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+                        <div class="temp-label">Road Surface Temp</div>
+                        <div class="temp-value" id="displaySurfaceTemp">--</div>
+                        <div class="temp-unit">°F</div>
+                    </div>
+                </div>
+                
+                <div class="risk-indicator minimal" id="riskIndicator" style="display: none;">
+                    <div class="risk-level" id="riskLevel">-</div>
+                    <div class="risk-probability" id="riskProbability">-</div>
+                </div>
+                
+                <div class="components" id="componentsDisplay" style="display: none;">
+                    <strong style="color: #333;">Heat Balance Components:</strong>
+                    <div class="component-item">
+                        <span class="component-label">☀️ Solar Heat Gain</span>
+                        <span class="component-value" id="solarGain">-</span>
+                    </div>
+                    <div class="component-item">
+                        <span class="component-label">❄️ Radiational Cooling</span>
+                        <span class="component-value" id="cooling">-</span>
+                    </div>
+                    <div class="component-item">
+                        <span class="component-label">💨 Wind Adjustment</span>
+                        <span class="component-value" id="windAdj">-</span>
+                    </div>
+                    <div class="component-item">
+                        <span class="component-label">🌍 Ground Heat</span>
+                        <span class="component-value" id="groundHeat">-</span>
+                    </div>
+                </div>
+                
+                <div class="explanation" id="explanationBox" style="display: none;">
+                    <strong>Explanation:</strong><br>
+                    <span id="explanation">-</span>
+                </div>
+            </div>
+            
+            <!-- Forecast Chart -->
+            <div class="card full-width">
+                <h2>📈 12-Hour Surface Temperature Forecast</h2>
+                <div class="chart-container">
+                    <canvas id="forecastChart"></canvas>
+                </div>
+                <table class="forecast-table" id="forecastTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Hour</th>
+                            <th>Time</th>
+                            <th>Air Temp</th>
+                            <th>Surface Temp</th>
+                            <th>Risk Level</th>
+                            <th>Probability</th>
+                        </tr>
+                    </thead>
+                    <tbody id="forecastBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE_URL = 'http://localhost:5000';
+        let forecastChart = null;
+        
+        async function estimateTemp() {
+            showLoading(true);
+            
+            try {
+                const params = new URLSearchParams({
+                    lat: parseFloat(document.getElementById('latitude').value),
+                    lon: parseFloat(document.getElementById('longitude').value),
+                    temp: parseFloat(document.getElementById('airTemp').value),
+                    humidity: parseFloat(document.getElementById('humidity').value),
+                    dew_point: parseFloat(document.getElementById('dewPoint').value),
+                    clouds: parseInt(document.getElementById('cloudCover').value),
+                    wind: parseFloat(document.getElementById('windSpeed').value),
+                    pavement: document.getElementById('pavementType').value
+                });
+                
+                const response = await fetch(`${API_BASE_URL}/api/road-temp/estimate?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data.result);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error estimating temperature: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function displayResults(result) {
+            document.getElementById('tempDisplay').style.display = 'grid';
+            document.getElementById('componentsDisplay').style.display = 'block';
+            document.getElementById('explanationBox').style.display = 'block';
+            
+            // Display temperatures
+            document.getElementById('displayAirTemp').textContent = result.air_temp.toFixed(1);
+            document.getElementById('displaySurfaceTemp').textContent = result.estimated_surface_temp.toFixed(1);
+            
+            // Display risk
+            const riskIndicator = document.getElementById('riskIndicator');
+            riskIndicator.style.display = 'block';
+            riskIndicator.className = 'risk-indicator ' + result.black_ice_risk.toLowerCase();
+            document.getElementById('riskLevel').textContent = result.black_ice_risk + ' RISK';
+            document.getElementById('riskProbability').textContent = 
+                `Black Ice Probability: ${(result.black_ice_probability * 100).toFixed(0)}%`;
+            
+            // Display components
+            document.getElementById('solarGain').textContent = result.components.solar_gain + '°F';
+            document.getElementById('cooling').textContent = '-' + result.components.radiational_cooling + '°F';
+            document.getElementById('windAdj').textContent = result.components.wind_adjustment + '°F';
+            document.getElementById('groundHeat').textContent = '+' + result.components.ground_heat + '°F';
+            
+            // Display explanation
+            document.getElementById('explanation').textContent = result.explanation;
+        }
+        
+        async function forecast12h() {
+            showLoading(true);
+            
+            try {
+                // For demo, generate mock hourly forecast
+                const hourlyForecast = generateMockForecast();
+                
+                const response = await fetch(`${API_BASE_URL}/api/road-temp/forecast-12h`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lat: parseFloat(document.getElementById('latitude').value),
+                        lon: parseFloat(document.getElementById('longitude').value),
+                        hourly_weather: hourlyForecast,
+                        pavement_type: document.getElementById('pavementType').value
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayForecast(data.forecast);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                // Show demo forecast
+                const demo = generateDemoForecast();
+                displayForecast(demo);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function generateMockForecast() {
+            const forecast = [];
+            let baseTemp = parseFloat(document.getElementById('airTemp').value);
+            const now = new Date();
+            
+            for (let i = 0; i < 12; i++) {
+                const hour = (now.getHours() + i) % 24;
+                let temp = baseTemp;
+                
+                // Simulate temperature curve
+                if (hour >= 4 && hour <= 14) {
+                    // Warming during day
+                    temp += Math.sin((hour - 4) / 10 * Math.PI) * 8;
+                } else {
+                    // Cooling at night
+                    temp -= 5;
+                }
+                
+                forecast.push({
+                    temperature: temp,
+                    humidity: 70 + Math.random() * 20,
+                    dew_point: temp - 5,
+                    wind_speed: 5 + Math.random() * 10,
+                    clouds: 50 + Math.random() * 30
+                });
+            }
+            
+            return forecast;
+        }
+        
+        function generateDemoForecast() {
+            const forecast = [];
+            for (let i = 0; i < 12; i++) {
+                const temp = 32 - Math.sin(i / 6 * Math.PI) * 8;
+                forecast.push({
+                    hour: i,
+                    timestamp: new Date(Date.now() + i * 3600000).toISOString(),
+                    surface_temp: temp,
+                    air_temp: temp + 2,
+                    black_ice_risk: temp < 32 ? 'HIGH' : 'LOW',
+                    probability: Math.max(0.1, (32 - temp) / 20),
+                    is_night: true
+                });
+            }
+            return forecast;
+        }
+        
+        function displayForecast(forecast) {
+            document.getElementById('forecastTable').style.display = 'table';
+            
+            const body = document.getElementById('forecastBody');
+            body.innerHTML = '';
+            
+            const temps = [];
+            const risks = [];
+            const hours = [];
+            
+            forecast.forEach(h => {
+                const hour = h.hour || 0;
+                const time = new Date(h.timestamp || Date.now());
+                const timeStr = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                temps.push(h.surface_temp);
+                risks.push((h.probability || 0) * 100);
+                hours.push(hour + ':00');
+                
+                const riskClass = h.black_ice_risk?.toLowerCase() === 'high' ? 'risk-high' : 'risk-low';
+                
+                body.innerHTML += `
+                    <tr>
+                        <td>${hour}</td>
+                        <td>${timeStr}</td>
+                        <td>${h.air_temp.toFixed(1)}°F</td>
+                        <td>${h.surface_temp.toFixed(1)}°F</td>
+                        <td><span class="${riskClass}">${h.black_ice_risk}</span></td>
+                        <td>${((h.probability || 0) * 100).toFixed(0)}%</td>
+                    </tr>
+                `;
+            });
+            
+            // Update chart
+            updateChart(hours, temps, risks);
+        }
+        
+        function updateChart(labels, temps, risks) {
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+            
+            if (forecastChart) {
+                forecastChart.destroy();
+            }
+            
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Road Surface Temp (°F)',
+                            data: temps,
+                            borderColor: '#f5576c',
+                            backgroundColor: 'rgba(245, 87, 108, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#f5576c'
+                        },
+                        {
+                            label: 'Black Ice Risk (%)',
+                            data: risks,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Temperature (°F)' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Risk %' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        // Demo on load
+        window.addEventListener('load', () => {
+            estimateTemp();
+        });
+    </script>
+</body>
+</html>
