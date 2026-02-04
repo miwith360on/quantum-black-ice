@@ -1634,15 +1634,24 @@ function updateRoadTempDisplay(roadTempData) {
             }
         }
         
-        messageEl.textContent = roadTempData.message || '✅ Real road surface temperature from DOT sensor';
-        messageEl.style.color = '#10b981';
+        // Determine if this is a modeled or real temperature
+        const isModeled = roadTempData.message && roadTempData.message.includes('Modeled');
+        if (isModeled) {
+            messageEl.textContent = `📉 Est. Surface Temp (${roadTempData.message.split('(')[1].split(' risk')[0]})`;
+            messageEl.style.color = '#8b5cf6';  // Purple for modeled/estimated
+        } else {
+            messageEl.textContent = roadTempData.message || '✅ Real road surface temperature from DOT sensor';
+            messageEl.style.color = '#10b981';
+        }
     } else {
+        // No sensor data available, but heat balance model should have been called
+        // This handles the case where even the heat balance model returned no data
         tempValueEl.textContent = '--°F';
-        distanceEl.textContent = 'No sensors nearby';
+        distanceEl.textContent = 'No data';
         confidenceEl.textContent = 'N/A';
         confidenceEl.style.background = '#6b7280';
-        messageEl.textContent = roadTempData.message || '⚠️ No RWIS sensors within 25 miles - using air temperature';
-        messageEl.style.color = '#f59e0b';
+        messageEl.textContent = roadTempData.message || 'Unable to estimate temperature';
+        messageEl.style.color = '#9ca3af';
     }
     
     console.log('🌡️ Road temp updated:', roadTempData.road_temp_f);
