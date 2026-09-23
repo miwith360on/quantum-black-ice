@@ -22,15 +22,146 @@ class RiskLevel(Enum):
 
 class BlackIcePredictor:
     """
-    Predicts black ice formation based on weather conditions
-    
-    Black ice forms when:
-    - Temperature is near or below freezing (0°C / 32°F)
-    - High humidity or recent precipitation
-    - Dew point is near surface temperature
-    - Low wind speeds (allows ice to form)
-    - Clear skies at night (radiational cooling)
+    Predicts black ice formation based on winter weather conditions.
+
+    The production model is intentionally hybrid-friendly: it keeps the existing
+    explainable rules engine, and adds a second-stage risk blend for real winter
+    patterns like overnight cooling, bridge risk, low visibility, and optional
+    experimental quantum signals.
     """
+    
+    # Critical temperature thresholds (Celsius)
+    FREEZING_POINT = 0.0
+    DANGER_TEMP_MIN = -5.0
+    DANGER_TEMP_MAX = 2.0
+    
+    # Humidity threshold
+    HIGH_HUMIDITY = 80.0
+    
+    # Wind speed threshold (m/s)
+    LOW_WIND_SPEED = 3.0
+
+    def predict_hybrid(
+        self,
+        temperature: float,
+        humidity: float,
+        dew_point: float,
+        wind_speed: float,
+        precipitation: float = 0.0,
+        road_temperature: Optional[float] = None,
+        cloud_cover: float = 50.0,
+        visibility: Optional[float] = None,
+        hour: Optional[int] = None,
+        recent_cooling: float = 0.0,
+        bridge_risk: float = 0.0,
+        quantum_signal: Optional[float] = None,
+    ) -> Dict:
+        """Blend classical black-ice rules with real winter risk modifiers."""
+        base = self.predict(
+            temperature=temperature,
+            humidity=humidity,
+            dew_point=dew_point,
+            wind_speed=wind_speed,
+            precipitation=precipitation,
+            road_temperature=road_temperature,
+        )
+
+        surface_temp = road_temperature if road_temperature is not None else temperature
+        additional_factors = []
+        hybrid_boost = 0.0
+
+        if recent_cooling > 0:
+            cooling_boost = min(recent_cooling * 7.5, 20.0)
+            hybrid_boost += cooling_boost
+            additional_factors.append({
+                'name': 'Recent Cooling',
+                'score': round(cooling_boost, 1),
+                'description': f'Cooling trend of {recent_cooling:.1f}°C supports freeze formation'
+            })
+
+        if bridge_risk > 0:
+            bridge_boost = min(bridge_risk * 20.0, 25.0)
+            hybrid_boost += bridge_boost
+            additional_factors.append({
+                'name': 'Bridge/Overpass Risk',
+                'score': round(bridge_boost, 1),
+                'description': 'Bridges and elevated surfaces are cooling faster than roads nearby'
+            })
+
+        if cloud_cover < 30:
+            cloud_boost = (30 - cloud_cover) / 30.0 * 10.0
+            hybrid_boost += cloud_boost
+            additional_factors.append({
+                'name': 'Clear Night Signal',
+                'score': round(cloud_boost, 1),
+                'description': 'Low cloud cover supports radiational cooling and overnight freeze risk'
+            })
+
+        if visibility is not None and visibility < 5:
+            visibility_boost = (5 - visibility) / 5.0 * 12.0
+            hybrid_boost += visibility_boost
+            additional_factors.append({
+                'name': 'Low Visibility',
+                'score': round(visibility_boost, 1),
+                'description': f'Visibility is {visibility:.1f} km, increasing risk of hidden ice'
+            })
+
+        if hour is not None and (hour >= 20 or hour <= 5):
+            night_boost = 8.0
+            hybrid_boost += night_boost
+            additional_factors.append({
+                'name': 'Nighttime Freeze Window',
+                'score': 8.0,
+                'description': 'Overnight conditions favor black ice formation'
+            })
+
+        if quantum_signal is not None:
+            quantum_boost = max(0.0, min(float(quantum_signal), 1.0)) * 15.0
+            hybrid_boost += quantum_boost
+            additional_factors.append({
+                'name': 'Quantum Signal',
+                'score': round(quantum_boost, 1),
+                'description': 'Experimental quantum probability signal added as secondary context'
+            })
+
+        final_probability = min(100.0, base['probability'] + hybrid_boost)
+        risk_level = self._determine_risk_level(final_probability)
+        final_recommendations = self._generate_recommendations(risk_level, base['factors'])
+
+        hybrid_factor = {
+            'name': 'Hybrid Risk Blend',
+            'score': round(final_probability - base['probability'], 1),
+            'description': 'Hybrid model combines winter physics, local risk modifiers, and experimental signal'
+        }
+        factors = base['factors'] + additional_factors + [hybrid_factor]
+
+        result = {
+            'risk_level': risk_level.value,
+            'probability': round(final_probability, 1),
+            'risk_score': round(final_probability, 1),
+            'factors': factors,
+            'recommendations': final_recommendations,
+            'conditions': {
+                'temperature': temperature,
+                'surface_temperature': surface_temp,
+                'humidity': humidity,
+                'dew_point': dew_point,
+                'wind_speed': wind_speed,
+                'precipitation': precipitation,
+                'cloud_cover': cloud_cover,
+                'visibility': visibility,
+                'hour': hour,
+                'recent_cooling': recent_cooling,
+                'bridge_risk': bridge_risk,
+            },
+            'model': 'hybrid_black_ice_model_v1',
+            'base_probability': base['probability'],
+            'hybrid_boost': round(hybrid_boost, 1),
+            'confidence': 'high' if final_probability >= 70 else 'medium' if final_probability >= 40 else 'low',
+        }
+
+        logger.info(f"Hybrid black ice prediction: {risk_level.value} ({final_probability:.1f}%)")
+        return result
     
     # Critical temperature thresholds (Celsius)
     FREEZING_POINT = 0.0

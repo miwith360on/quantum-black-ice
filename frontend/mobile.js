@@ -691,6 +691,7 @@ function updatePredictionDisplay(data) {
     const riskCircle = document.getElementById('risk-circle');
     const riskPercentage = document.getElementById('risk-percentage');
     const riskLabel = document.getElementById('risk-label');
+    const riskActionText = document.getElementById('risk-action-text');
     
     // Map risk level to percentage
     const riskMap = {
@@ -711,6 +712,18 @@ function updatePredictionDisplay(data) {
     if (riskValue < 30) riskCircle.classList.add('low');
     else if (riskValue < 60) riskCircle.classList.add('medium');
     else riskCircle.classList.add('high');
+
+    if (riskActionText) {
+        if (riskValue < 30) {
+            riskActionText.textContent = 'Conditions look manageable, but continue watching bridges, shaded roads, and overnight cooling spots.';
+        } else if (riskValue < 60) {
+            riskActionText.textContent = 'Use extra caution on bridges, ramps, and untreated roads. Allow more stopping distance and reduce speed.';
+        } else if (riskValue < 80) {
+            riskActionText.textContent = 'Black ice risk is elevated. Avoid unnecessary travel and treat overpasses and cold corners as hazardous.';
+        } else {
+            riskActionText.textContent = 'High risk for black ice. Delay travel if possible and avoid bridges, ramps, and shaded pavement.';
+        }
+    }
     
     // Update confidence bar
     const confidenceBar = document.getElementById('confidence-bar');
@@ -1106,7 +1119,7 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
 function showQFPMFallback(errorMessage) {
     const qfpmAlert = document.getElementById('qfpm-alert');
     if (qfpmAlert) {
-        qfpmAlert.textContent = `⚠️ QFPM unavailable - Using basic forecast`;
+        qfpmAlert.textContent = '⚠️ Short-term freeze watch unavailable - using local conditions backup';
         qfpmAlert.style.borderColor = '#FFA500';
         qfpmAlert.style.backgroundColor = 'rgba(255, 165, 0, 0.1)';
     }
@@ -1214,7 +1227,7 @@ function updateQFPMDisplay(qfpmData) {
     updateForecastItem('90', probs['90_min']);
     
     // Update alert message
-    document.getElementById('qfpm-alert').textContent = summary.alert_message || '⚛️ Quantum prediction ready';
+    document.getElementById('qfpm-alert').textContent = summary.alert_message || '❄️ Short-term freeze watch updated';
     document.getElementById('qfpm-alert').style.borderColor = summary.color || '#667eea';
     
     // Highlight peak risk time

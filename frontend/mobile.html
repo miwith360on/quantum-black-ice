@@ -11,7 +11,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Black Ice Detection - Mobile</title>
+    <title>Winter Watch - Black Ice Detection</title>
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -46,8 +46,8 @@
         <header class="mobile-header">
             <div class="header-content">
                 <div class="header-left">
-                    <span class="app-icon">🌨️</span>
-                    <h1 class="app-title">Black Ice Alert</h1>
+                    <span class="app-icon">❄️</span>
+                    <h1 class="app-title">Winter Watch</h1>
                 </div>
                 <div class="header-right">
                     <button class="icon-btn" id="refresh-btn" aria-label="Refresh">
@@ -135,6 +135,11 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="risk-action-panel" aria-live="polite">
+                    <div class="action-header">What to do now</div>
+                    <div class="action-text" id="risk-action-text">Monitor conditions and stay alert on bridges, ramps, and shaded roads.</div>
+                </div>
             </div>
 
             <!-- BIFI Score Card -->
@@ -185,9 +190,9 @@
                 </div>
             </div>
 
-            <!-- QFPM Forecast Card -->
+            <!-- Short-term Freeze Watch Card -->
             <div class="card qfpm-card">
-                <h2 class="card-title">⚛️ Quantum Freeze Forecast</h2>
+                <h2 class="card-title">❄️ Short-term Freeze Watch</h2>
                 
                 <div class="qfpm-timeline">
                     <div class="forecast-item" id="forecast-30min">
@@ -214,7 +219,7 @@
                 </div>
                 
                 <div class="qfpm-alert" id="qfpm-alert">
-                    ⚛️ Quantum analysis in progress...
+                    ❄️ Evaluating the next few hours of freeze risk...
                 </div>
             </div>
 
@@ -416,11 +421,11 @@
                 </div>
             </div>
 
-            <!-- AI Prediction Card -->
+            <!-- Local Route Outlook Card -->
             <div class="card ai-card">
                 <h2 class="card-title">
-                    <span class="title-icon">🤖</span>
-                    AI Prediction
+                    <span class="title-icon">🧭</span>
+                    Local Route Outlook
                 </h2>
                 <div class="ai-status">
                     <div class="status-indicator" id="ml-status">

@@ -11,6 +11,7 @@ from flask_limiter.util import get_remote_address
 from flask_compress import Compress
 from datetime import datetime, timedelta
 import os
+import sys
 import logging
 import math
 from dotenv import load_dotenv
@@ -18,24 +19,48 @@ import asyncio
 import threading
 import requests
 
-from weather_service import WeatherService
-from black_ice_predictor import BlackIcePredictor
-from database import Database
-from route_monitor import RouteMonitor
-from radar_service import RadarService
-from websocket_server import WebSocketManager
-from quantum_predictor import QuantumBlackIcePredictor
-from advanced_weather_calculator import AdvancedWeatherCalculator
-from noaa_weather_service import NOAAWeatherService
-from road_risk_analyzer import RoadRiskAnalyzer
-from mapbox_service import MapboxService
-from traffic_monitor import TrafficMonitor
-from satellite_service import SatelliteService
-from openmeteo_service import OpenMeteoService
-from gps_context_system import GPSContextSystem
-from rwis_service import RWISService
-from precipitation_type_service import PrecipitationTypeService
-from road_surface_temp_model import RoadSurfaceTemperatureModel
+BACKEND_DIR = os.path.abspath(os.path.dirname(__file__))
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
+try:
+    from .weather_service import WeatherService
+    from .black_ice_predictor import BlackIcePredictor
+    from .database import Database
+    from .route_monitor import RouteMonitor
+    from .radar_service import RadarService
+    from .websocket_server import WebSocketManager
+    from .quantum_predictor import QuantumBlackIcePredictor
+    from .advanced_weather_calculator import AdvancedWeatherCalculator
+    from .noaa_weather_service import NOAAWeatherService
+    from .road_risk_analyzer import RoadRiskAnalyzer
+    from .mapbox_service import MapboxService
+    from .traffic_monitor import TrafficMonitor
+    from .satellite_service import SatelliteService
+    from .openmeteo_service import OpenMeteoService
+    from .gps_context_system import GPSContextSystem
+    from .rwis_service import RWISService
+    from .precipitation_type_service import PrecipitationTypeService
+    from .road_surface_temp_model import RoadSurfaceTemperatureModel
+except ImportError:
+    from weather_service import WeatherService
+    from black_ice_predictor import BlackIcePredictor
+    from database import Database
+    from route_monitor import RouteMonitor
+    from radar_service import RadarService
+    from websocket_server import WebSocketManager
+    from quantum_predictor import QuantumBlackIcePredictor
+    from advanced_weather_calculator import AdvancedWeatherCalculator
+    from noaa_weather_service import NOAAWeatherService
+    from road_risk_analyzer import RoadRiskAnalyzer
+    from mapbox_service import MapboxService
+    from traffic_monitor import TrafficMonitor
+    from satellite_service import SatelliteService
+    from openmeteo_service import OpenMeteoService
+    from gps_context_system import GPSContextSystem
+    from rwis_service import RWISService
+    from precipitation_type_service import PrecipitationTypeService
+    from road_surface_temp_model import RoadSurfaceTemperatureModel
 
 # Lazy-loaded services (avoid heavy imports at startup)
 _lazy_services = {}
@@ -412,13 +437,19 @@ def predict_black_ice():
         return jsonify({'error': 'Missing required weather data'}), 400
     
     try:
-        prediction = predictor.predict(
+        prediction = predictor.predict_hybrid(
             temperature=data['temperature'],
             humidity=data['humidity'],
             dew_point=data['dew_point'],
             wind_speed=data['wind_speed'],
             precipitation=data.get('precipitation', 0),
-            road_temperature=data.get('road_temperature')
+            road_temperature=data.get('road_temperature'),
+            cloud_cover=data.get('cloud_cover', 50),
+            visibility=data.get('visibility'),
+            hour=data.get('hour'),
+            recent_cooling=data.get('recent_cooling', 0),
+            bridge_risk=data.get('bridge_risk', 0),
+            quantum_signal=data.get('quantum_signal')
         )
         
         # Store prediction in database
@@ -450,12 +481,19 @@ def monitor_location():
         weather_data = weather_service.get_current_weather(lat, lon)
         
         # Make prediction
-        prediction = predictor.predict(
+        prediction = predictor.predict_hybrid(
             temperature=weather_data['temperature'],
             humidity=weather_data['humidity'],
             dew_point=weather_data['dew_point'],
             wind_speed=weather_data['wind_speed'],
-            precipitation=weather_data.get('precipitation', 0)
+            precipitation=weather_data.get('precipitation', 0),
+            road_temperature=weather_data.get('road_temperature'),
+            cloud_cover=weather_data.get('cloud_cover', 50),
+            visibility=weather_data.get('visibility'),
+            hour=weather_data.get('hour'),
+            recent_cooling=weather_data.get('recent_cooling', 0),
+            bridge_risk=weather_data.get('bridge_risk', 0),
+            quantum_signal=weather_data.get('quantum_signal')
         )
         
         # Get historical data
