@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Winter Watch | Project Summary</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121b2d;
+      --panel-alt: #17233d;
+      --line: rgba(148, 163, 184, 0.18);
+      --text: #e5ecff;
+      --muted: #a7b7cf;
+      --blue: #60a5fa;
+      --cyan: #67e8f9;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --shadow: rgba(15, 23, 42, 0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 20%),
+        radial-gradient(circle at bottom right, rgba(103, 232, 249, 0.12), transparent 22%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0 72px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 0 30px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      box-shadow: 0 10px 25px rgba(96, 165, 250, 0.35);
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.35);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 28px;
+      align-items: center;
+      padding: 20px 0 24px;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: clamp(2.4rem, 4vw, 4.3rem);
+      line-height: 1.02;
+      letter-spacing: -0.06em;
+    }
+
+    .subhead {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 620px;
+      margin-bottom: 24px;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      border-radius: 12px;
+      padding: 13px 18px;
+      font-weight: 700;
+      transition: transform 0.2s ease;
+    }
+
+    .button:hover { transform: translateY(-1px); }
+
+    .button.primary {
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
+      color: #08111d;
+      box-shadow: 0 12px 28px rgba(96, 165, 250, 0.35);
+    }
+
+    .button.secondary {
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: rgba(15, 23, 42, 0.36);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(130px, 1fr));
+      gap: 16px;
+    }
+
+    .stat {
+      background: rgba(18, 27, 45, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 16px;
+      box-shadow: 0 18px 30px var(--shadow);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      letter-spacing: -0.05em;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .hero-card {
+      background: linear-gradient(180deg, rgba(18, 27, 45, 0.92), rgba(18, 27, 45, 0.76));
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 20px;
+      box-shadow: 0 24px 40px var(--shadow);
+    }
+
+    .mini-panel {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .risk-score {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin: 8px 0 6px;
+      font-weight: 800;
+      letter-spacing: -0.06em;
+    }
+
+    .risk-score strong {
+      font-size: 3rem;
+      color: var(--red);
+    }
+
+    .risk-score span {
+      color: var(--muted);
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .bars {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .bar {
+      display: grid;
+      grid-template-columns: 100px 1fr 46px;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .bar-track {
+      height: 9px;
+      background: rgba(148, 163, 184, 0.14);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--green), var(--amber), var(--red));
+    }
+
+    section {
+      margin-top: 44px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(1.5rem, 2vw, 2.2rem);
+      letter-spacing: -0.05em;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: rgba(18, 27, 45, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 22px 20px;
+      box-shadow: 0 18px 30px var(--shadow);
+    }
+
+    .icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: rgba(96, 165, 250, 0.12);
+      border: 1px solid rgba(96, 165, 250, 0.2);
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 1.1rem;
+      letter-spacing: -0.03em;
+    }
+
+    .card p {
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .stack {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 18px;
+    }
+
+    .quote {
+      margin-top: 28px;
+      border-left: 3px solid rgba(103, 232, 249, 0.9);
+      padding-left: 16px;
+      color: var(--muted);
+      font-size: 1.03rem;
+    }
+
+    @media (max-width: 820px) {
+      .hero, .grid, .stack {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">❄️</div>
+        <span>Winter Watch</span>
+      </div>
+      <div class="pill">Black Ice Intelligence</div>
+    </div>
+
+    <div class="hero">
+      <div>
+        <h1>Safer winter travel starts with better local risk visibility.</h1>
+        <p class="subhead">
+          Winter Watch combines weather, route conditions, and freeze forecasting to help communities and drivers spot black ice risk earlier, with clearer guidance and more actionable insight.
+        </p>
+
+        <div class="cta-row">
+          <a class="button primary" href="/mobile.html">Open the app</a>
+          <a class="button secondary" href="/">View live dashboard</a>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <strong>Real-time</strong>
+            <span>Weather sync</span>
+          </div>
+          <div class="stat">
+            <strong>Route-aware</strong>
+            <span>Risk review</span>
+          </div>
+          <div class="stat">
+            <strong>Local-first</strong>
+            <span>Decision support</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div class="mini-panel">
+          <div class="label">Current risk</div>
+          <div class="risk-score"><strong>86</strong><span>High</span></div>
+          <div class="muted">Black ice likely on bridges, shaded pavement, and colder routes.</div>
+        </div>
+
+        <div class="bars">
+          <div class="bar">
+            <span>Temp</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 82%"></div></div>
+            <strong>82%</strong>
+          </div>
+          <div class="bar">
+            <span>Humidity</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 76%"></div></div>
+            <strong>76%</strong>
+          </div>
+          <div class="bar">
+            <span>Freeze</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 90%"></div></div>
+            <strong>90%</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <div class="section-header">
+        <h2>What the product does</h2>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="icon">📍</div>
+          <h3>Local weather intelligence</h3>
+          <p>Tracks temperature, humidity, dew point, visibility, and recent conditions that contribute to black ice formation.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🛣️</div>
+          <h3>Route-level awareness</h3>
+          <p>Flags elevated risk around bridges, ramps, and colder corridors where black ice appears earlier than expected.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🧭</div>
+          <h3>Actionable guidance</h3>
+          <p>Turns raw weather data into practical next steps so users know when to slow down, avoid travel, or adjust route plans.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-header">
+        <h2>Why it matters</h2>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <div class="icon">⚠️</div>
+          <h3>Black ice is hard to see</h3>
+          <p>It can form quickly on colder pavement, elevated road sections, and shaded surfaces, often before drivers realize the risk.</p>
+        </div>
+        <div class="card">
+          <div class="icon">✅</div>
+          <h3>Trust comes from clarity</h3>
+          <p>Reliable winter safety tools need explainable conditions, risk levels, and practical recommendations people can act on immediately.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="quote">
+      Built for communities, commuters, and local decision-makers who need to see risk sooner and act with more confidence during winter weather.
+    </div>
+  </div>
+</body>
+</html>

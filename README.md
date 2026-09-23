@@ -9,9 +9,9 @@
 ![WebSocket](https://img.shields.io/badge/WebSocket-Live-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**A cutting-edge weather monitoring system with AI/ML, real-time streaming, and satellite radar**
+**Winter safety intelligence for black ice, route risk, and real-time road conditions**
 
-[Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Advanced Features](#advanced-features) • [API Documentation](#api-documentation)
+[Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Overview](#-about) • [API Documentation](#api-documentation)
 
 </div>
 
@@ -19,17 +19,16 @@
 
 ## 🌨️ About
 
-The Quantum Black Ice Detection System is a **cutting-edge real-world application** that combines meteorological data analysis, **AI/ML deep learning**, **real-time WebSocket streaming**, and **satellite radar integration** to identify dangerous black ice conditions on roads. Black ice is one of the most hazardous winter driving conditions because it's nearly invisible and forms suddenly.
+Quantum Black Ice is a winter safety platform built to help people make better decisions when roads are most dangerous. It blends real-time weather data, route-aware risk assessment, and local freeze forecasting to surface high-risk conditions before they become hazardous.
 
-### What is Black Ice?
+Black ice is difficult to see, forms quickly, and can appear on bridges, ramps, shaded roads, and colder stretches of pavement before drivers notice it. This system is designed to make that risk more visible, explainable, and actionable.
 
-Black ice is a thin, transparent layer of ice that forms on road surfaces, typically when:
-- Temperatures hover around freezing (0°C / 32°F)
-- High humidity or recent precipitation
-- Clear skies at night cause radiational cooling
-- Low wind speeds allow ice to form
+### Why this matters
 
-It's called "black ice" because it's transparent and you can see the road surface through it, making it extremely dangerous for drivers.
+- Safer winter travel decisions
+- Better awareness around bridges and overpasses
+- Clearer local risk guidance during overnight freezes
+- Trustworthy, practical forecasting for communities and fleets
 
 ## ✨ Features
 

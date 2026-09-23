@@ -280,6 +280,13 @@ def heat_balance_dashboard():
     from flask import send_from_directory
     return send_from_directory(static_folder, 'heat-balance-dashboard.html')
 
+@app.route('/project-summary')
+@app.route('/project-summary.html')
+def project_summary():
+    """Serve the polished product summary page"""
+    from flask import send_from_directory
+    return send_from_directory(static_folder, 'project-summary.html')
+
 @app.route('/<path:path>')
 def serve_static(path):
     """Serve static files (CSS, JS, images, etc.)"""
