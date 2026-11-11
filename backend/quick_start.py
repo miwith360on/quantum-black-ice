@@ -30,6 +30,7 @@ from bifi_calculator import BlackIceFormationIndex
 from rwis_service import RWISService
 from precipitation_type_service import PrecipitationTypeService
 from bridge_freeze_calculator import BridgeFreezeCalculator
+from bridge_finder import BridgeFinder
 from overnight_cooling_predictor import OvernightCoolingPredictor
 from recent_precipitation_tracker import RecentPrecipitationTracker
 
@@ -70,6 +71,7 @@ bifi_calc = BlackIceFormationIndex()
 rwis = RWISService()  # Real road surface temps from DOT sensors
 precip_service = PrecipitationTypeService()  # Freezing rain detection
 bridge_calc = BridgeFreezeCalculator()  # Enhanced bridge freeze prediction
+bridge_finder = BridgeFinder()  # Real bridges near the user (OpenStreetMap)
 overnight_cooling = OvernightCoolingPredictor()  # 2-6 AM freeze prediction
 recent_precip_tracker = RecentPrecipitationTracker()  # Wet pavement detection
 
@@ -188,13 +190,17 @@ def get_current_weather():
         # Fallback to OpenMeteo (no API key needed)
         if not weather_data:
             import requests
-            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
-            response = requests.get(url)
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,dew_point_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,cloud_cover,is_day&temperature_unit=fahrenheit&wind_speed_unit=mph"
+            # Units must match the rest of the app (°F and mph); Open-Meteo defaults to °C and km/h
+            response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 meteo_data = response.json()['current']
                 weather_data = {
                     'temperature': meteo_data['temperature_2m'],
                     'humidity': meteo_data['relative_humidity_2m'],
+                    'dew_point': meteo_data.get('dew_point_2m'),
+                    'clouds': meteo_data.get('cloud_cover'),
+                    'is_day': meteo_data.get('is_day'),
                     'wind_speed': meteo_data['wind_speed_10m'],
                     'wind_direction': meteo_data['wind_direction_10m'],
                     'precipitation': meteo_data['precipitation'],
@@ -210,7 +216,8 @@ def get_current_weather():
         try:
             noaa_data = noaa_service.get_current_observations(lat, lon)
             if noaa_data:
-                weather_data.update(noaa_data)
+                # Don't let missing NOAA readings (None) wipe out good values
+                weather_data.update({k: v for k, v in noaa_data.items() if v is not None})
         except:
             pass
         
@@ -711,23 +718,96 @@ def calculate_bridge_freeze():
         return jsonify({'error': 'Request body required'}), 400
     
     try:
-        # Accept multiple key names for flexibility
-        air_temp = data.get('air_temp_f') or data.get('current_temp_f') or data.get('temperature')
-        wind_speed = data.get('wind_speed_mph') or data.get('wind_speed') or 5
-        humidity = data.get('humidity_percent') or data.get('humidity') or 70
-        bridge_material = data.get('bridge_material') or data.get('bridge_type') or 'concrete'
-        bridge_length = data.get('bridge_length_ft') or 200
-        
-        if air_temp is None:
+        w = _bridge_weather_inputs(data)
+        if w['air_temp_f'] is None:
             return jsonify({'error': 'temperature data required (air_temp_f, current_temp_f, or temperature)'}), 400
-        
+
         freeze_data = bridge_calc.calculate_bridge_freeze_temp(
-            air_temp, wind_speed, humidity, bridge_material, bridge_length
+            bridge_material=_first_present(data, 'bridge_material', 'bridge_type', default='concrete'),
+            bridge_length_ft=_first_present(data, 'bridge_length_ft'),
+            **w
         )
-        
+
         return jsonify({
             'success': True,
             'bridge_freeze': freeze_data,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def _first_present(data, *keys, default=None):
+    """First key that is present and not None. Unlike `a or b`, keeps real zeros (0°F, 0 mph)."""
+    for k in keys:
+        if data.get(k) is not None:
+            return data[k]
+    return default
+
+
+def _bridge_weather_inputs(data):
+    """Pull weather fields (°F, mph) out of a request body, accepting the app's key names."""
+    is_day = _first_present(data, 'is_day')
+    is_night = _first_present(data, 'is_night')
+    if is_night is None and is_day is not None:
+        is_night = not bool(is_day)
+    if is_night is None:
+        hour = datetime.now().hour  # fallback: server clock
+        is_night = hour >= 18 or hour < 7
+    return {
+        'air_temp_f': _first_present(data, 'air_temp_f', 'current_temp_f', 'temperature'),
+        'wind_speed_mph': _first_present(data, 'wind_speed_mph', 'wind_speed', default=5),
+        'humidity_percent': _first_present(data, 'humidity_percent', 'humidity', default=70),
+        'dew_point_f': _first_present(data, 'dew_point_f', 'dew_point'),
+        'cloud_cover_percent': _first_present(data, 'cloud_cover', 'clouds'),
+        'is_night': is_night,
+        'recent_precip': bool(_first_present(data, 'precipitation', 'recent_precip', default=0)),
+    }
+
+
+# Real bridges near the user, each with its own freeze risk
+@app.route('/api/bridge/nearby', methods=['POST'])
+def nearby_bridges():
+    """
+    Body: { lat, lon, radius_m (optional, default 8000), temperature (°F), wind_speed (mph),
+            humidity, dew_point, clouds, is_day, precipitation }
+    Returns the nearest real drivable bridges from OpenStreetMap with a freeze risk for each.
+    """
+    data = request.json or {}
+    lat, lon = data.get('lat'), data.get('lon')
+    if lat is None or lon is None:
+        return jsonify({'error': 'lat and lon required'}), 400
+
+    w = _bridge_weather_inputs(data)
+    if w['air_temp_f'] is None:
+        return jsonify({'error': 'temperature (°F) required'}), 400
+
+    try:
+        found = bridge_finder.find_bridges(float(lat), float(lon),
+                                           radius_m=data.get('radius_m', 8000),
+                                           limit=int(data.get('limit', 10)))
+        rank = {'critical': 0, 'high': 1, 'moderate': 2, 'low': 3}
+        bridges = []
+        for b in found['bridges']:
+            risk = bridge_calc.calculate_bridge_freeze_temp(
+                bridge_material=b['material'], bridge_length_ft=b['length_ft'], **w)
+            bridges.append({**b, 'freeze': risk})
+
+        # Most dangerous first, then closest
+        bridges.sort(key=lambda b: (rank[b['freeze']['freeze_risk']], b['distance_m']))
+        counts = {lvl: sum(1 for b in bridges if b['freeze']['freeze_risk'] == lvl) for lvl in rank}
+
+        return jsonify({
+            'success': True,
+            'bridges': bridges,
+            'summary': {
+                'count': len(bridges),
+                'risk_counts': counts,
+                'worst_risk': bridges[0]['freeze']['freeze_risk'] if bridges else None,
+            },
+            'general': bridge_calc.calculate_bridge_freeze_temp(**w),  # typical bridge, for the headline
+            'source': found.get('source'),
+            'lookup_error': found.get('error'),
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:

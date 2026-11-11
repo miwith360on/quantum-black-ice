@@ -1,284 +1,200 @@
 """
-Enhanced Bridge Freeze Calculator
-Bridges freeze at WARMER temperatures than regular roads due to:
-1. Air circulation below bridge (cools from both top and bottom)
-2. No ground heat from below
-3. Metal/concrete structure conducts heat away faster
+Bridge Freeze Calculator
 
-Rule: Bridges can freeze when air temp is 35-40°F (5-10°F warmer than road freeze point)
+Why bridges ice first: a bridge deck has cold air above AND below it and no
+ground underneath to feed it heat. On clear, calm nights it radiates heat to
+the sky and can end up several degrees colder than the air, so it can ice
+over while the air (and regular roads) are still above 32°F.
+
+How this model works:
+  1. Estimate the deck surface temperature from air temperature, cloud cover,
+     wind, time of day, material and length.
+       - Clear skies + calm wind + night = most cooling (deck well below air).
+       - Wind mixes the air and keeps the deck close to air temperature.
+         It does NOT make the deck colder than the air.
+       - Daytime sun warms the deck.
+  2. Ice needs water. Check for moisture: frost when the deck is at or below
+     the dew point, or a wet deck from recent precipitation / near-saturated air.
+  3. Risk = deck temperature vs 32°F, combined with whether moisture is there.
+
+All temperatures in °F, wind in mph.
 """
 
 import logging
-from typing import Dict, Optional
 import math
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+FREEZING_F = 32.0
+MAX_RADIATIVE_COOLING_F = 6.0   # deck below air on a clear, calm night
+NO_GROUND_HEAT_F = 1.0          # bridges lack the ground heat that roads get
+
+MATERIAL_OFFSET_F = {
+    'steel': 1.0,      # thin steel decks lose heat fastest
+    'metal': 1.0,
+    'concrete': 0.0,
+    'composite': 0.0,
+    'wood': -0.5,
+}
+
+
 class BridgeFreezeCalculator:
-    """Calculate freeze risk specifically for bridges and overpasses"""
-    
+    """Estimate ice risk on a bridge deck from current weather."""
+
     def __init__(self):
         logger.info("Bridge Freeze Calculator initialized")
-    
+
     def calculate_bridge_freeze_temp(
-        self, 
+        self,
         air_temp_f: float,
         wind_speed_mph: float,
         humidity_percent: float,
         bridge_material: str = 'concrete',
-        bridge_length_ft: Optional[float] = None
+        bridge_length_ft: Optional[float] = None,
+        dew_point_f: Optional[float] = None,
+        cloud_cover_percent: Optional[float] = None,
+        is_night: Optional[bool] = None,
+        recent_precip: bool = False,
     ) -> Dict:
-        """
-        Calculate when a bridge will freeze
-        
-        Args:
-            air_temp_f: Air temperature in Fahrenheit
-            wind_speed_mph: Wind speed (affects wind chill on bridge surface)
-            humidity_percent: Relative humidity
-            bridge_material: 'concrete', 'steel', or 'composite'
-            bridge_length_ft: Bridge length (longer = more exposed)
-            
-        Returns:
-            {
-                'bridge_freeze_temp_f': float,  # Temp at which bridge surface freezes
-                'regular_road_freeze_temp_f': float,  # Temp for regular road
-                'temp_difference': float,  # How much warmer bridge freezes
-                'freeze_risk': 'critical' | 'high' | 'moderate' | 'low',
-                'warning_message': str,
-                'time_to_freeze_minutes': int or None
-            }
-        """
-        
-        # Base freeze temperature for regular road (with ground heat)
-        regular_road_freeze = 32.0
-        
-        # Bridge freezes warmer due to air circulation
-        # Formula: Bridges freeze when air temp is 5-10°F above 32°F
-        base_bridge_offset = 8.0  # Bridges freeze at ~40°F air temp
-        
-        # Adjust for wind (more wind = faster heat loss = freezes at warmer temp)
-        wind_offset = self._calculate_wind_offset(wind_speed_mph)
-        
-        # Adjust for humidity (high humidity = frost forms easier)
-        humidity_offset = self._calculate_humidity_offset(humidity_percent)
-        
-        # Adjust for bridge material
-        material_offset = self._get_material_offset(bridge_material)
-        
-        # Adjust for bridge length (longer = more exposed)
-        length_offset = self._calculate_length_offset(bridge_length_ft) if bridge_length_ft else 0
-        
-        # Total bridge freeze offset
-        total_offset = base_bridge_offset + wind_offset + humidity_offset + material_offset + length_offset
-        
-        # Bridge freeze temperature
-        bridge_freeze_temp = regular_road_freeze + total_offset
-        
-        # Calculate current freeze risk
-        freeze_risk, warning = self._calculate_freeze_risk(air_temp_f, bridge_freeze_temp)
-        
-        # Estimate time to freeze (if currently above freeze temp)
-        time_to_freeze = self._estimate_freeze_time(
-            air_temp_f, 
-            bridge_freeze_temp,
-            wind_speed_mph
-        )
-        
+        air_temp_f = float(air_temp_f)
+        wind_speed_mph = float(wind_speed_mph or 0)
+        humidity_percent = float(humidity_percent if humidity_percent is not None else 70)
+        material = (bridge_material or 'concrete').lower()
+
+        if dew_point_f is None:
+            dew_point_f = self._dew_point_f(air_temp_f, humidity_percent)
+
+        # --- 1. How much colder than the air is the deck? ---
+        sky = self._sky_factor(cloud_cover_percent)
+        wind = self._wind_factor(wind_speed_mph)
+        time_of_day = 0.7 if is_night is None else (1.0 if is_night else 0.3)
+        radiative = MAX_RADIATIVE_COOLING_F * sky * wind * time_of_day
+
+        material_offset = MATERIAL_OFFSET_F.get(material, 0.0)
+        length_offset = 0.5 if (bridge_length_ft or 0) > 500 else 0.0
+
+        total_offset = max(0.0, radiative + NO_GROUND_HEAT_F + material_offset + length_offset)
+        deck_temp_f = air_temp_f - total_offset
+
+        # Air temp at which this deck reaches 32°F ("watch zone" threshold)
+        watch_zone_air_temp = FREEZING_F + total_offset
+
+        # --- 2. Is there water to freeze? ---
+        frost_possible = deck_temp_f <= dew_point_f + 1.0
+        wet_deck = bool(recent_precip) or humidity_percent >= 92
+        moisture = frost_possible or wet_deck
+
+        # --- 3. Risk ---
+        risk, warning = self._risk(deck_temp_f, moisture, frost_possible, wet_deck)
+
+        minutes = None
+        if risk != 'critical' and air_temp_f - watch_zone_air_temp <= 5:
+            # Rough: decks cool ~1°F every 6-15 min at night depending on sky/wind
+            minutes_per_degree = 6 if sky * wind > 0.6 else 10 if sky * wind > 0.3 else 15
+            minutes = int(max(0, deck_temp_f - FREEZING_F) * minutes_per_degree)
+
         return {
-            'bridge_freeze_temp_f': round(bridge_freeze_temp, 1),
-            'regular_road_freeze_temp_f': regular_road_freeze,
-            'temp_difference': round(total_offset, 1),
-            'current_air_temp_f': air_temp_f,
-            'freeze_risk': freeze_risk,
+            # Main outputs
+            'freeze_risk': risk,
             'warning_message': warning,
-            'time_to_freeze_minutes': time_to_freeze,
+            'estimated_deck_temp_f': round(deck_temp_f, 1),
+            'current_air_temp_f': round(air_temp_f, 1),
+            'dew_point_f': round(dew_point_f, 1),
+            'bridge_freeze_temp_f': round(watch_zone_air_temp, 1),
+            'regular_road_freeze_temp_f': FREEZING_F,
+            'temp_difference': round(total_offset, 1),
+            'moisture_present': moisture,
+            'frost_possible': frost_possible,
+            'wet_deck': wet_deck,
+            'currently_frozen': risk == 'critical',
+            'will_freeze_soon': risk == 'high',
+            'time_to_freeze_minutes': minutes,
             'factors': {
-                'wind_offset': round(wind_offset, 1),
-                'humidity_offset': round(humidity_offset, 1),
-                'material_offset': round(material_offset, 1),
-                'length_offset': round(length_offset, 1) if bridge_length_ft else 0
-            }
+                'sky_cooling_f': round(radiative, 1),
+                'no_ground_heat_f': NO_GROUND_HEAT_F,
+                'material_offset_f': material_offset,
+                'length_offset_f': length_offset,
+            },
+            'inputs': {
+                'material': material,
+                'length_ft': bridge_length_ft,
+                'wind_mph': round(wind_speed_mph, 1),
+                'humidity': round(humidity_percent),
+                'cloud_cover': cloud_cover_percent,
+                'is_night': is_night,
+            },
         }
-    
-    def _calculate_wind_offset(self, wind_speed_mph: float) -> float:
-        """
-        More wind = bridge freezes at even warmer temperature
-        Wind accelerates heat loss from bridge surface
-        """
-        if wind_speed_mph > 20:
-            return 3.0  # High wind: freezes at +3°F warmer
-        elif wind_speed_mph > 10:
-            return 2.0  # Moderate wind: +2°F
-        elif wind_speed_mph > 5:
-            return 1.0  # Light wind: +1°F
+
+    # ---------- helpers ----------
+
+    @staticmethod
+    def _sky_factor(cloud_cover: Optional[float]) -> float:
+        if cloud_cover is None:
+            return 0.5
+        if cloud_cover < 30:
+            return 1.0
+        if cloud_cover < 70:
+            return 0.5
+        return 0.15  # overcast: clouds trap heat
+
+    @staticmethod
+    def _wind_factor(wind_mph: float) -> float:
+        if wind_mph < 5:
+            return 1.0
+        if wind_mph < 10:
+            return 0.6
+        if wind_mph < 15:
+            return 0.35
+        return 0.2  # windy: deck stays near air temperature
+
+    @staticmethod
+    def _dew_point_f(temp_f: float, rh: float) -> float:
+        t = (temp_f - 32) * 5 / 9
+        rh = min(max(rh, 1.0), 100.0)
+        a, b = 17.62, 243.12
+        g = math.log(rh / 100.0) + a * t / (b + t)
+        return (b * g / (a - g)) * 9 / 5 + 32
+
+    @staticmethod
+    def _risk(deck_exact: float, moisture: bool, frost: bool, wet: bool) -> tuple:
+        deck = deck_exact
+        shown = math.floor(deck_exact)  # round down so 31.6°F never displays as "32°F"
+        if deck <= FREEZING_F and moisture:
+            why = 'frost forming on the deck' if frost and not wet else 'moisture on the deck'
+            return 'critical', f'🚨 Ice likely now: deck is about {shown}°F with {why}'
+        if deck <= FREEZING_F:
+            return 'high', f'🔴 Deck is about {shown}°F but dry. Any rain, snow or mist will freeze on contact'
+        if deck <= 35 and moisture:
+            return 'high', f'🔴 Deck is about {shown}°F and damp. Could ice up with a small temperature drop'
+        if deck <= 35:
+            return 'moderate', f'🟡 Deck is about {shown}°F. Close to freezing, but dry'
+        if deck <= 38 and moisture:
+            return 'moderate', f'🟡 Deck is about {shown}°F and damp. Watch it if temperatures keep falling'
+        return 'low', f'✅ Deck is about {shown}°F. Ice unlikely right now'
+
+    def compare_bridge_vs_road(self, air_temp_f, wind_speed_mph, humidity_percent,
+                               bridge_material='concrete', **kwargs) -> Dict:
+        """Compare bridge vs regular road at the same weather."""
+        bridge = self.calculate_bridge_freeze_temp(
+            air_temp_f, wind_speed_mph, humidity_percent, bridge_material, **kwargs)
+        deck = bridge['estimated_deck_temp_f']
+        # A road has ground heat and cools roughly half as much as a deck
+        road = float(air_temp_f) - bridge['factors']['sky_cooling_f'] * 0.5
+        danger_zone = deck <= FREEZING_F < road
+        if danger_zone:
+            warning = ('⚠️ Bridge danger zone: bridges may be icy while regular roads are still above freezing')
+        elif road <= FREEZING_F:
+            warning = '🚨 Bridges and roads are both at or below freezing'
         else:
-            return 0.0  # Calm: no additional offset
-    
-    def _calculate_humidity_offset(self, humidity_percent: float) -> float:
-        """
-        Higher humidity = frost/ice forms easier on bridge
-        """
-        if humidity_percent > 80:
-            return 2.0  # High humidity: +2°F offset
-        elif humidity_percent > 60:
-            return 1.0  # Moderate: +1°F
-        else:
-            return 0.0  # Low: no offset
-    
-    def _get_material_offset(self, material: str) -> float:
-        """
-        Different materials have different freeze characteristics
-        """
-        material_map = {
-            'steel': 3.0,      # Steel conducts heat away fastest
-            'metal': 3.0,
-            'concrete': 1.5,   # Concrete is middle
-            'composite': 1.0,  # Composite materials slightly better
-            'wood': 0.5        # Wood (old bridges) retains heat better
-        }
-        return material_map.get(material.lower(), 1.5)  # Default to concrete
-    
-    def _calculate_length_offset(self, length_ft: float) -> float:
-        """
-        Longer bridges = more exposed to wind and air circulation
-        """
-        if length_ft > 1000:
-            return 1.5  # Very long bridge (1000+ ft)
-        elif length_ft > 500:
-            return 1.0  # Long bridge (500-1000 ft)
-        elif length_ft > 200:
-            return 0.5  # Medium bridge
-        else:
-            return 0.0  # Short bridge/overpass
-    
-    def _calculate_freeze_risk(self, current_temp_f: float, freeze_temp_f: float) -> tuple:
-        """
-        Determine freeze risk level based on how close current temp is to freeze temp
-        """
-        temp_margin = current_temp_f - freeze_temp_f
-        
-        if temp_margin <= 0:
-            # Already at or below freeze temp
-            return (
-                'critical',
-                f'⚠️ BRIDGE FREEZING NOW! Surface temp at or below {freeze_temp_f}°F'
-            )
-        elif temp_margin <= 2:
-            # Within 2°F of freezing
-            return (
-                'critical',
-                f'🚨 CRITICAL: Bridge will freeze in minutes! Only {temp_margin:.1f}°F from freeze point'
-            )
-        elif temp_margin <= 5:
-            # Within 5°F
-            return (
-                'high',
-                f'🔴 HIGH RISK: Bridge may freeze soon. {temp_margin:.1f}°F above freeze point ({freeze_temp_f}°F)'
-            )
-        elif temp_margin <= 10:
-            # Within 10°F
-            return (
-                'moderate',
-                f'🟡 MODERATE: Monitor bridge conditions. {temp_margin:.1f}°F above freeze point'
-            )
-        else:
-            # More than 10°F above
-            return (
-                'low',
-                f'✅ LOW RISK: Bridge unlikely to freeze. {temp_margin:.1f}°F above freeze point'
-            )
-    
-    def _estimate_freeze_time(
-        self, 
-        current_temp_f: float, 
-        freeze_temp_f: float,
-        wind_speed_mph: float
-    ) -> Optional[int]:
-        """
-        Estimate minutes until bridge freezes (rough approximation)
-        
-        Assumptions:
-        - Bridge surface cools ~1°F per 5-10 minutes depending on wind
-        - This is a ROUGH estimate for user awareness
-        """
-        temp_drop_needed = current_temp_f - freeze_temp_f
-        
-        if temp_drop_needed <= 0:
-            return 0  # Already freezing
-        
-        # Cooling rate depends on wind
-        if wind_speed_mph > 15:
-            minutes_per_degree = 3  # Fast cooling with high wind
-        elif wind_speed_mph > 7:
-            minutes_per_degree = 5  # Moderate cooling
-        else:
-            minutes_per_degree = 8  # Slow cooling with light wind
-        
-        estimated_minutes = int(temp_drop_needed * minutes_per_degree)
-        
-        # Cap at 180 minutes (3 hours) for realism
-        return min(estimated_minutes, 180)
-    
-    def compare_bridge_vs_road(
-        self,
-        air_temp_f: float,
-        wind_speed_mph: float,
-        humidity_percent: float,
-        bridge_material: str = 'concrete'
-    ) -> Dict:
-        """
-        Direct comparison: When will bridge freeze vs when will regular road freeze
-        
-        Returns detailed comparison showing the danger window where
-        bridges are icy but regular roads are still safe
-        """
-        bridge_calc = self.calculate_bridge_freeze_temp(
-            air_temp_f, wind_speed_mph, humidity_percent, bridge_material
-        )
-        
-        regular_road_freeze = 32.0
-        bridge_freeze = bridge_calc['bridge_freeze_temp_f']
-        
-        # The "danger zone" where bridges are frozen but roads are not
-        danger_zone = (
-            air_temp_f >= regular_road_freeze and 
-            air_temp_f <= bridge_freeze
-        )
-        
+            warning = '✅ Bridges and roads both above freezing'
         return {
-            'bridge_freeze_temp': bridge_freeze,
-            'road_freeze_temp': regular_road_freeze,
+            'bridge_deck_temp': deck,
+            'road_surface_temp': round(road, 1),
             'current_air_temp': air_temp_f,
             'in_danger_zone': danger_zone,
-            'bridge_frozen': air_temp_f <= bridge_freeze,
-            'road_frozen': air_temp_f <= regular_road_freeze,
-            'warning': self._get_comparison_warning(
-                air_temp_f, bridge_freeze, regular_road_freeze, danger_zone
-            ),
-            'bridge_details': bridge_calc
+            'bridge_frozen': deck <= FREEZING_F,
+            'road_frozen': road <= FREEZING_F,
+            'warning': warning,
+            'bridge_details': bridge,
         }
-    
-    def _get_comparison_warning(
-        self,
-        air_temp: float,
-        bridge_freeze: float,
-        road_freeze: float,
-        in_danger_zone: bool
-    ) -> str:
-        """Generate warning message for bridge vs road comparison"""
-        if in_danger_zone:
-            return (
-                f"⚠️ BRIDGE DANGER ZONE! Air temp {air_temp}°F is warm enough for roads "
-                f"({road_freeze}°F freeze point) but COLD ENOUGH FOR BRIDGES "
-                f"({bridge_freeze}°F freeze point). BRIDGES MAY BE ICY WHILE ROADS ARE CLEAR!"
-            )
-        elif air_temp <= road_freeze:
-            return (
-                f"🚨 BOTH BRIDGES AND ROADS FROZEN! Air temp {air_temp}°F is below "
-                f"freeze point for all surfaces. EXTREME CAUTION!"
-            )
-        else:
-            return (
-                f"✅ Both bridges and roads safe. Air temp {air_temp}°F is above "
-                f"bridge freeze point ({bridge_freeze}°F)."
-            )

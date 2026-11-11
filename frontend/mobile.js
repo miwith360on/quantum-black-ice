@@ -1538,24 +1538,32 @@ async function getPrecipitationType() {
 }
 
 // Bridge Freeze Risk
+// Looks up REAL bridges near the user (OpenStreetMap) and rates each one
 async function getBridgeFreezeRisk(weatherData) {
+    if (!weatherData || currentLocation.lat == null || currentLocation.lng == null) return;
     try {
-        const response = await fetch(`${API_BASE}/api/bridge/freeze-risk`, {
+        const response = await fetch(`${API_BASE}/api/bridge/nearby`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                current_temp_f: weatherData.temperature,
-                wind_speed_mph: weatherData.wind_speed,
-                humidity_percent: weatherData.humidity,
-                bridge_type: 'steel',
-                bridge_length_ft: 200
+                lat: currentLocation.lat,
+                lon: currentLocation.lng,
+                temperature: weatherData.temperature,      // °F
+                wind_speed: weatherData.wind_speed,        // mph
+                humidity: weatherData.humidity,
+                dew_point: weatherData.dew_point,
+                clouds: weatherData.clouds,
+                is_day: weatherData.is_day,
+                precipitation: weatherData.precipitation,
+                radius_m: 8000,
+                limit: 10
             })
         });
-        
+
         if (response.ok) {
             const data = await response.json();
-            if (data.success && data.bridge_freeze) {
-                updateBridgeDisplay(data.bridge_freeze);
+            if (data.success) {
+                updateBridgeDisplay(data);
             }
         }
     } catch (error) {
@@ -1807,67 +1815,101 @@ function updatePrecipTypeDisplay(precipTypeData) {
 }
 
 // Update Bridge Freeze Display
-function updateBridgeDisplay(bridgeData) {
-    if (!bridgeData) return;
-    
+const BRIDGE_RISK_COLORS = { critical: '#dc2626', high: '#f97316', moderate: '#eab308', low: '#10b981' };
+const BRIDGE_RISK_LABELS = { critical: 'Ice likely', high: 'High risk', moderate: 'Watch', low: 'Low risk' };
+let bridgeLayer = null;
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// data = response from /api/bridge/nearby
+function updateBridgeDisplay(data) {
+    if (!data) return;
+    const general = data.general;
+    const bridges = data.bridges || [];
+
     const freezeTempEl = document.getElementById('bridge-freeze-temp');
     const dangerZoneEl = document.getElementById('bridge-danger-zone');
+    const deckTempEl = document.getElementById('bridge-deck-temp');
     const factorsEl = document.getElementById('bridge-factors');
     const warningEl = document.getElementById('bridge-warning');
-    
-    // NOTE: bridge_freeze_temp_f represents the WATCH ZONE threshold (typically 35-45°F depending on conditions),
-    // NOT the physical freezing point. This is the temperature at which we enter a high-risk zone for black ice formation
-    // on bridges. Bridges are at risk at higher temps than regular roads because:
-    // - Reduced thermal mass (thinner surface area)
-    // - Wind exposure above and below the structure
-    // - Moisture condensation patterns
-    // The actual threshold varies based on wind, humidity, bridge materials, etc.
-    freezeTempEl.textContent = `${bridgeData.bridge_freeze_temp_f.toFixed(0)}°F`;
-    
-    const tempDiff = bridgeData.bridge_freeze_temp_f - 32;
-    dangerZoneEl.textContent = `${tempDiff.toFixed(0)}°F warmer`;
-    
-    // Styling based on freeze temp
-    if (bridgeData.bridge_freeze_temp_f <= 35) {
-        freezeTempEl.style.color = '#dc2626';
-    } else if (bridgeData.bridge_freeze_temp_f <= 38) {
-        freezeTempEl.style.color = '#f59e0b';
-    } else {
-        freezeTempEl.style.color = '#eab308';
+    const listEl = document.getElementById('bridge-list');
+
+    // Headline: air temperature at which a typical bridge deck reaches 32°F tonight
+    if (general && freezeTempEl) {
+        freezeTempEl.textContent = `${general.bridge_freeze_temp_f.toFixed(0)}°F`;
+        freezeTempEl.style.color = BRIDGE_RISK_COLORS[general.freeze_risk];
+        if (dangerZoneEl) dangerZoneEl.textContent = `${general.temp_difference.toFixed(0)}°F warmer`;
+        if (deckTempEl) deckTempEl.textContent = `${Math.floor(general.estimated_deck_temp_f)}°F`;
     }
-    
-    // Show risk factors
-    const factors = [];
-    if (bridgeData.wind_impact_f > 1) {
-        factors.push(`High wind (+${bridgeData.wind_impact_f.toFixed(1)}°F)`);
+
+    // Why: plain-language factors
+    if (general && factorsEl) {
+        const f = [];
+        const sky = general.factors.sky_cooling_f;
+        if (sky >= 3) f.push(`Clear, calm sky: deck about ${sky.toFixed(0)}°F colder than the air`);
+        else if (sky >= 1) f.push(`Some sky cooling: deck about ${sky.toFixed(0)}°F colder than the air`);
+        else f.push('Clouds or wind keep the deck close to air temperature');
+        f.push(general.moisture_present
+            ? (general.wet_deck ? 'Moisture: wet deck or near-saturated air' : 'Moisture: frost can form (deck at dew point)')
+            : 'Dry: no frost or wet pavement expected');
+        factorsEl.innerHTML = f.map(x => `<div class="factor-item">• ${escapeHtml(x)}</div>`).join('');
     }
-    if (bridgeData.humidity_impact_f > 1) {
-        factors.push(`High humidity (+${bridgeData.humidity_impact_f.toFixed(1)}°F)`);
+
+    // Overall warning = worst real bridge nearby (falls back to typical bridge)
+    const worst = bridges[0]?.freeze || general;
+    if (worst && warningEl) {
+        let msg = worst.warning_message;
+        const n = data.summary?.risk_counts || {};
+        const atRisk = (n.critical || 0) + (n.high || 0);
+        if (bridges.length && atRisk) msg = `${atRisk} of ${bridges.length} bridges near you at high risk. ${msg}`;
+        warningEl.textContent = msg;
+        warningEl.style.color = BRIDGE_RISK_COLORS[worst.freeze_risk];
+        warningEl.style.fontWeight = worst.freeze_risk === 'critical' ? 'bold' : '';
     }
-    if (bridgeData.material_offset_f >= 3) {
-        factors.push(`Steel bridge (+${bridgeData.material_offset_f}°F)`);
+
+    // List of real bridges
+    if (listEl) {
+        if (!bridges.length) {
+            listEl.innerHTML = `<div class="bridge-empty">${data.lookup_error
+                ? 'Bridge lookup unavailable right now. Showing general bridge risk.'
+                : 'No drivable bridges found within 5 miles.'}</div>`;
+        } else {
+            listEl.innerHTML = bridges.map(b => {
+                const r = b.freeze.freeze_risk;
+                const meta = [
+                    b.road && b.road !== b.name ? escapeHtml(b.road) : null,
+                    `${b.distance_mi.toFixed(1)} mi`,
+                    `${b.length_ft.toLocaleString()} ft`,
+                    b.material_known ? escapeHtml(b.material) : null,
+                    `deck ~${Math.floor(b.freeze.estimated_deck_temp_f)}°F`
+                ].filter(Boolean).join(' · ');
+                return `<div class="bridge-row">
+                    <span class="bridge-dot" style="background:${BRIDGE_RISK_COLORS[r]}"></span>
+                    <div class="bridge-info">
+                        <div class="bridge-name">${escapeHtml(b.name)}</div>
+                        <div class="bridge-meta">${meta}</div>
+                    </div>
+                    <span class="bridge-badge" style="color:${BRIDGE_RISK_COLORS[r]};border-color:${BRIDGE_RISK_COLORS[r]}">${BRIDGE_RISK_LABELS[r]}</span>
+                </div>`;
+            }).join('') + `<div class="bridge-source">Bridges from OpenStreetMap. Deck temperatures are estimates.</div>`;
+        }
     }
-    
-    if (factors.length > 0) {
-        factorsEl.innerHTML = factors.map(f => `<div class="factor-item">• ${f}</div>`).join('');
-    } else {
-        factorsEl.innerHTML = '<div class="factor-item">• Standard conditions</div>';
+
+    // Map markers, colored by risk
+    if (typeof map !== 'undefined' && map && typeof L !== 'undefined') {
+        if (!bridgeLayer) bridgeLayer = L.layerGroup().addTo(map);
+        bridgeLayer.clearLayers();
+        bridges.forEach(b => {
+            const c = BRIDGE_RISK_COLORS[b.freeze.freeze_risk];
+            L.circleMarker([b.lat, b.lon], { radius: 7, color: '#fff', weight: 2, fillColor: c, fillOpacity: 0.95 })
+                .bindPopup(`<b>🌉 ${escapeHtml(b.name)}</b><br>${BRIDGE_RISK_LABELS[b.freeze.freeze_risk]} · deck ~${Math.floor(b.freeze.estimated_deck_temp_f)}°F<br>${escapeHtml(b.freeze.warning_message)}`)
+                .addTo(bridgeLayer);
+        });
     }
-    
-    // Warning message
-    if (bridgeData.currently_frozen) {
-        warningEl.textContent = '🚨 BRIDGES ARE FREEZING NOW!';
-        warningEl.style.color = '#dc2626';
-        warningEl.style.fontWeight = 'bold';
-    } else if (bridgeData.will_freeze_soon) {
-        warningEl.textContent = bridgeData.warning_message || `⚠️ Bridges will freeze in ${bridgeData.minutes_until_freeze} minutes`;
-        warningEl.style.color = '#f59e0b';
-    } else {
-        warningEl.textContent = bridgeData.warning_message || '✅ Bridges above freezing temperature';
-        warningEl.style.color = '#10b981';
-    }
-    
-    console.log('🌉 Bridge freeze updated:', bridgeData.bridge_freeze_temp_f);
+
+    console.log(`🌉 Bridges: ${bridges.length} nearby, worst = ${worst?.freeze_risk}`);
 }
 
 // ==================== END ACCURACY UPGRADES ====================

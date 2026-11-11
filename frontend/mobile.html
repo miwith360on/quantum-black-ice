@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Mobile Styles (cache bust) -->
-    <link rel="stylesheet" href="mobile-styles.css?v=3.1">
+    <link rel="stylesheet" href="mobile-styles.css?v=3.2">
     
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -393,24 +393,31 @@
                              - Moisture accumulation patterns
                              - Earlier dew point condensation on surface
                              The actual temperature shown is calculated based on current weather conditions. -->
-                        <div class="bridge-label">Bridge Watch Zone:</div>
+                        <div class="bridge-label">Bridges can ice when air is below:</div>
                         <div class="bridge-freeze-temp" id="bridge-freeze-temp">--°F</div>
                     </div>
-                    
+
                     <div class="bridge-comparison">
                         <div class="comparison-stat">
-                            <span class="stat-label">Road freezes at:</span>
-                            <span class="stat-value">32°F</span>
+                            <span class="stat-label">Bridge deck now (est.):</span>
+                            <span class="stat-value" id="bridge-deck-temp">--°F</span>
                         </div>
                         <div class="comparison-stat danger-zone">
-                            <span class="stat-label">Danger zone:</span>
+                            <span class="stat-label">Ices before roads by:</span>
                             <span class="stat-value" id="bridge-danger-zone">--°F warmer</span>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="bridge-factors">
-                    <div class="factor-label">Risk Factors:</div>
+                    <div class="factor-label">Bridges near you:</div>
+                    <div class="bridge-list" id="bridge-list">
+                        <div class="bridge-empty">Finding bridges near you...</div>
+                    </div>
+                </div>
+
+                <div class="bridge-factors">
+                    <div class="factor-label">Why:</div>
                     <div class="factors-list" id="bridge-factors">
                         <div class="factor-item">Calculating...</div>
                     </div>
@@ -828,6 +835,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="config.js?v=3.5"></script>
-    <script src="mobile.js?v=3.5"></script>
+    <script src="mobile.js?v=3.6"></script>
 </body>
 </html>
