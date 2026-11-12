@@ -92,7 +92,7 @@ class BridgeFinder:
 
     def _build_query(self, lat: float, lon: float, radius_m: float) -> str:
         return f"""
-        [out:json][timeout:25];
+        [out:json][timeout:15];
         way["bridge"~"^(yes|viaduct|movable|cantilever|trestle)$"]
            ["highway"~"^({DRIVABLE_HIGHWAYS})$"]
            (around:{int(radius_m)},{lat},{lon});
@@ -103,7 +103,7 @@ class BridgeFinder:
         query = self._build_query(lat, lon, radius_m)
         for url in OVERPASS_URLS:
             try:
-                resp = self.session.post(url, data={'data': query}, timeout=30,
+                resp = self.session.post(url, data={"data": query}, timeout=12,
                                          headers={'User-Agent': 'QuantumBlackIce/1.0'})
                 if resp.status_code == 200:
                     return resp.json()

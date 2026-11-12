@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Mobile Styles (cache bust) -->
-    <link rel="stylesheet" href="mobile-styles.css?v=3.2">
+    <link rel="stylesheet" href="mobile-styles.css?v=3.3">
     
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -225,7 +225,8 @@
 
             <!-- IoT Mesh Network Card -->
             <div class="card mesh-card">
-                <h2 class="card-title">🌐 IoT Sensor Network</h2>
+                <h2 class="card-title">🌐 IoT Sensor Network <span class="demo-badge">Demo</span></h2>
+                <div class="demo-note">Simulated sensors showing how a roadside sensor network would work. Not real readings.</div>
                 
                 <div class="mesh-summary">
                     <div class="mesh-stat">
@@ -815,11 +816,11 @@
                     <div class="setting-item about-item">
                         <div class="about-text">
                             <strong>Powered by:</strong><br>
-                            ⚛️ 20-Qubit Quantum Computing<br>
-                            🤖 Machine Learning (LSTM)<br>
-                            🛰️ NASA Satellite Imagery<br>
-                            📡 IoT Sensor Network<br>
-                            🌍 Real-time Weather APIs
+                            🌍 Live weather: NOAA, OpenWeather, Open-Meteo<br>
+                            🌡️ DOT road sensors (Synoptic), when available<br>
+                            🌉 Bridges from OpenStreetMap<br>
+                            ⚛️ Experimental quantum-inspired freeze model<br>
+                            📡 IoT sensor network (demo)
                         </div>
                     </div>
                 </div>
@@ -835,6 +836,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="config.js?v=3.5"></script>
-    <script src="mobile.js?v=3.6"></script>
+    <script src="mobile.js?v=3.7"></script>
 </body>
 </html>

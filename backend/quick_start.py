@@ -357,70 +357,15 @@ def qfpm_predict():
     if not data or 'weather_data' not in data:
         return jsonify({'error': 'Weather data required'}), 400
     
-    # Check if QFPM is available
+    # Use the statistical prediction when the quantum model isn't loaded
     if qfpm is None:
-        # Fallback: Use statistical prediction instead of quantum
-        try:
-            weather_data = data['weather_data']
-            temp = weather_data.get('temperature', 32)
-            humidity = weather_data.get('humidity', 50)
-            wind = weather_data.get('wind_speed', 5)
-            
-            # Simple statistical prediction
-            base_risk = max(0, min(100, (35 - temp) * 10))  # 0-100% based on temp
-            humidity_factor = humidity / 100
-            wind_factor = max(0.5, 1 - (wind / 20))  # Wind reduces ice
-            
-            risk_30 = int(base_risk * 0.7 * humidity_factor * wind_factor)
-            risk_60 = int(base_risk * 0.85 * humidity_factor * wind_factor)
-            risk_90 = int(base_risk * 1.0 * humidity_factor * wind_factor)
-            
-            # Determine risk level
-            max_risk = max(risk_30, risk_60, risk_90)
-            if max_risk > 70:
-                risk_level = 'CRITICAL'
-                color = '#FF0000'
-            elif max_risk > 50:
-                risk_level = 'HIGH'
-                color = '#FF6B00'
-            elif max_risk > 30:
-                risk_level = 'MODERATE'
-                color = '#FFD700'
-            else:
-                risk_level = 'LOW'
-                color = '#00FF00'
-            
-            peak_time = '90min' if risk_90 >= risk_60 and risk_90 >= risk_30 else ('60min' if risk_60 >= risk_30 else '30min')
-            
-            return jsonify({
-                'success': True,
-                'summary': {
-                    'risk_level': risk_level,
-                    'color': color,
-                    'freeze_probability': {
-                        '30_min': risk_30,
-                        '60_min': risk_60,
-                        '90_min': risk_90
-                    },
-                    'peak_risk_time': peak_time,
-                    'alert_message': f'📊 Statistical prediction: {risk_level} risk (QFPM unavailable)'
-                },
-                'method': 'statistical_fallback',
-                'timestamp': datetime.now().isoformat()
-            })
-        except Exception as e:
-            return jsonify({'error': f'Fallback prediction failed: {str(e)}'}), 500
-    
+        return _qfpm_statistical(data)
+
     try:
         weather_data = data['weather_data']
         grid_size = data.get('grid_size', 5)
-        
-        # Generate QFPM
         freeze_matrix = qfpm.predict_freeze_matrix(weather_data, grid_size)
-        
-        # Get summary
         summary = qfpm.get_freeze_risk_summary(freeze_matrix)
-        
         return jsonify({
             'success': True,
             'freeze_matrix': {
@@ -434,7 +379,51 @@ def qfpm_predict():
             'timestamp': freeze_matrix['timestamp']
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # Quantum model failed: fall back instead of leaving the card broken
+        app.logger.warning(f"QFPM failed, using statistical fallback: {e}")
+        return _qfpm_statistical(data)
+
+
+def _statistical_freeze_summary(weather_data):
+    """Simple, explainable 30/60/90-minute freeze chance from current weather (°F, mph). None if no temperature."""
+    temp = weather_data.get('temperature')
+    if temp is None:
+        return None
+    temp = float(temp)
+    humidity = float(_first_present(weather_data, 'humidity', default=50))
+    wind = float(_first_present(weather_data, 'wind_speed', default=5))
+
+    base_risk = max(0, min(100, (35 - temp) * 10))   # 0% at 35°F and above, 100% at 25°F and below
+    humidity_factor = humidity / 100                  # needs moisture to make ice
+    wind_factor = max(0.5, 1 - (wind / 20))           # wind keeps pavement near air temp
+
+    r30 = int(base_risk * 0.7 * humidity_factor * wind_factor)
+    r60 = int(base_risk * 0.85 * humidity_factor * wind_factor)
+    r90 = int(base_risk * 1.0 * humidity_factor * wind_factor)
+    top = max(r30, r60, r90)
+    level = 'CRITICAL' if top > 70 else 'HIGH' if top > 50 else 'MODERATE' if top > 30 else 'LOW'
+    color = {'CRITICAL': '#FF0000', 'HIGH': '#FF6B00', 'MODERATE': '#FFD700', 'LOW': '#00FF00'}[level]
+    peak = '90min' if r90 >= r60 and r90 >= r30 else ('60min' if r60 >= r30 else '30min')
+    return {
+        'risk_level': level,
+        'color': color,
+        'freeze_probability': {'30_min': r30, '60_min': r60, '90_min': r90},
+        'peak_risk_time': peak,
+        'alert_message': f'📊 {level.title()} freeze risk in the next 90 minutes (based on current weather)',
+        'method': 'statistical',
+    }
+
+
+def _qfpm_statistical(data):
+    summary = _statistical_freeze_summary(data.get('weather_data') or {})
+    if summary is None:
+        return jsonify({'error': 'temperature required'}), 400
+    return jsonify({
+        'success': True,
+        'summary': summary,
+        'method': 'statistical_fallback',
+        'timestamp': datetime.now().isoformat()
+    })
 
 # IoT Mesh Network - Initialize sensors
 @app.route('/api/mesh/initialize', methods=['POST'])
@@ -570,44 +559,26 @@ def advanced_predict():
         results['bifi'] = bifi_calc.calculate(weather_data)
         results['bifi']['interpretation'] = bifi_calc.get_bifi_interpretation(results['bifi']['bifi_score'])
         
-        # Generate QFPM (with fallback if unavailable)
+        # Generate QFPM; if the quantum model is missing or errors, use the statistical summary
+        qfpm_result = None
         if qfpm is not None:
-            freeze_matrix = qfpm.predict_freeze_matrix(weather_data)
-            results['qfpm'] = {
-                '30min': freeze_matrix['30min'].tolist(),
-                '60min': freeze_matrix['60min'].tolist(),
-                '90min': freeze_matrix['90min'].tolist(),
-                'summary': qfpm.get_freeze_risk_summary(freeze_matrix)
-            }
-        else:
-            # Fallback statistical prediction
-            temp = weather_data.get('temperature', 32)
-            humidity = weather_data.get('humidity', 50)
-            wind = weather_data.get('wind_speed', 5)
-            
-            base_risk = max(0, min(100, (35 - temp) * 10))
-            humidity_factor = humidity / 100
-            wind_factor = max(0.5, 1 - (wind / 20))
-            
-            risk_30 = int(base_risk * 0.7 * humidity_factor * wind_factor)
-            risk_60 = int(base_risk * 0.85 * humidity_factor * wind_factor)
-            risk_90 = int(base_risk * 1.0 * humidity_factor * wind_factor)
-            
-            max_risk = max(risk_30, risk_60, risk_90)
-            risk_level = 'CRITICAL' if max_risk > 70 else ('HIGH' if max_risk > 50 else ('MODERATE' if max_risk > 30 else 'LOW'))
-            color = '#FF0000' if max_risk > 70 else ('#FF6B00' if max_risk > 50 else ('#FFD700' if max_risk > 30 else '#00FF00'))
-            peak_time = '90min' if risk_90 >= risk_60 and risk_90 >= risk_30 else ('60min' if risk_60 >= risk_30 else '30min')
-            
-            results['qfpm'] = {
-                'summary': {
-                    'risk_level': risk_level,
-                    'color': color,
-                    'freeze_probability': {'30_min': risk_30, '60_min': risk_60, '90_min': risk_90},
-                    'peak_risk_time': peak_time,
-                    'alert_message': f'📊 Statistical: {risk_level} risk'
+            try:
+                freeze_matrix = qfpm.predict_freeze_matrix(weather_data)
+                qfpm_result = {
+                    '30min': freeze_matrix['30min'].tolist(),
+                    '60min': freeze_matrix['60min'].tolist(),
+                    '90min': freeze_matrix['90min'].tolist(),
+                    'summary': qfpm.get_freeze_risk_summary(freeze_matrix)
                 }
-            }
-        
+            except Exception as e:
+                app.logger.warning(f"QFPM failed in advanced predict, using statistical: {e}")
+        if qfpm_result is None:
+            summary = _statistical_freeze_summary(weather_data)
+            if summary:
+                qfpm_result = {'summary': summary}
+        if qfpm_result is not None:
+            results['qfpm'] = qfpm_result
+
         # Get IoT mesh data if location provided
         if lat and lon:
             sensors = mesh_network.get_sensors_in_area(lat, lon)
@@ -766,14 +737,26 @@ def _bridge_weather_inputs(data):
 
 
 # Real bridges near the user, each with its own freeze risk
-@app.route('/api/bridge/nearby', methods=['POST'])
+@app.route('/api/bridge/nearby', methods=['GET', 'POST'])
 def nearby_bridges():
     """
     Body: { lat, lon, radius_m (optional, default 8000), temperature (°F), wind_speed (mph),
             humidity, dew_point, clouds, is_day, precipitation }
     Returns the nearest real drivable bridges from OpenStreetMap with a freeze risk for each.
     """
-    data = request.json or {}
+    if request.method == 'GET':
+        # Browser-friendly test: /api/bridge/nearby?lat=42.33&lon=-83.05&temperature=34
+        data = {k: v for k, v in request.args.items()}
+        for k in ('lat', 'lon', 'temperature', 'wind_speed', 'humidity', 'dew_point', 'clouds', 'radius_m', 'limit', 'precipitation'):
+            if k in data:
+                try:
+                    data[k] = float(data[k])
+                except ValueError:
+                    return jsonify({'error': f'{k} must be a number'}), 400
+        if 'is_day' in data:
+            data['is_day'] = data['is_day'] in ('1', 'true', 'True')
+    else:
+        data = request.get_json(silent=True) or {}
     lat, lon = data.get('lat'), data.get('lon')
     if lat is None or lon is None:
         return jsonify({'error': 'lat and lon required'}), 400
@@ -781,6 +764,11 @@ def nearby_bridges():
     w = _bridge_weather_inputs(data)
     if w['air_temp_f'] is None:
         return jsonify({'error': 'temperature (°F) required'}), 400
+
+    try:
+        general = bridge_calc.calculate_bridge_freeze_temp(**w)
+    except Exception as e:
+        return jsonify({'error': f'Bridge calculation failed: {e}'}), 500
 
     try:
         found = bridge_finder.find_bridges(float(lat), float(lon),
@@ -805,13 +793,23 @@ def nearby_bridges():
                 'risk_counts': counts,
                 'worst_risk': bridges[0]['freeze']['freeze_risk'] if bridges else None,
             },
-            'general': bridge_calc.calculate_bridge_freeze_temp(**w),  # typical bridge, for the headline
+            'general': general,  # typical bridge, for the headline
             'source': found.get('source'),
             'lookup_error': found.get('error'),
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # Bridge lookup broke: still return the general bridge risk so the card isn't empty
+        app.logger.error(f"Bridge lookup failed: {e}")
+        return jsonify({
+            'success': True,
+            'bridges': [],
+            'summary': {'count': 0, 'risk_counts': {}, 'worst_risk': None},
+            'general': general,
+            'source': 'OpenStreetMap',
+            'lookup_error': str(e),
+            'timestamp': datetime.now().isoformat()
+        })
 
 # Bridge vs Road Comparison
 @app.route('/api/bridge/compare', methods=['POST'])
@@ -1195,6 +1193,133 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     print('🔌 WebSocket client disconnected')
+
+
+# ==================== ROAD TEMPERATURE MODEL ====================
+@app.route('/api/heat-balance', methods=['POST'])
+def heat_balance():
+    """
+    Estimate road surface temperature when no DOT road sensor is nearby.
+    Body: air_temp (°F), wind_speed (mph), cloud_cover (0-100), is_daytime, dew_point (optional)
+
+    Day: sun warms pavement (less when cloudy).
+    Night: pavement radiates heat to the sky and drops below air temp on clear, calm nights.
+    Wind keeps pavement close to air temperature (it does not make it colder than the air).
+    """
+    data = request.get_json(silent=True) or {}
+    air_temp = data.get('air_temp')
+    if air_temp is None:
+        return jsonify({'error': 'air_temp is required'}), 400
+    try:
+        air_temp = float(air_temp)
+        wind = float(_first_present(data, 'wind_speed', default=5))
+        clouds = float(_first_present(data, 'cloud_cover', default=50))
+        is_day = bool(data.get('is_daytime', True))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'numbers required'}), 400
+
+    clear = 1 - min(max(clouds, 0), 100) / 100
+    calm = 1.0 if wind < 5 else 0.6 if wind < 10 else 0.35 if wind < 15 else 0.2
+    solar_gain = 10 * clear * calm if is_day else 0.0
+    sky_cooling = 0.0 if is_day else 4 * clear * calm
+    road = air_temp + solar_gain - sky_cooling
+
+    if road <= 28:
+        level, prob = 'EXTREME', 0.85
+    elif road <= 32:
+        level, prob = 'HIGH', 0.6
+    elif road <= 35:
+        level, prob = 'LOW', 0.1
+    else:
+        level, prob = 'MINIMAL', 0.0
+
+    explanation = f"Air {air_temp:.0f}°F"
+    if is_day:
+        explanation += f" + sun {solar_gain:.1f}°F"
+    else:
+        explanation += f" - night sky cooling {sky_cooling:.1f}°F"
+    explanation += f" = road about {road:.0f}°F"
+
+    return jsonify({
+        'success': True,
+        'air_temp': air_temp,
+        'estimated_road_temp': round(road, 1),
+        'risk_level': level,
+        'black_ice_probability': prob,
+        'components': {'solar_gain': round(solar_gain, 1), 'sky_cooling': round(sky_cooling, 1)},
+        'explanation': explanation,
+        'is_daytime': is_day,
+        'wind_speed': wind,
+        'cloud_cover': clouds
+    })
+
+
+# ==================== DRIVER REPORTS ====================
+# Kept in memory: reports are only useful for a couple of hours anyway.
+# They reset when the server restarts or redeploys.
+import math as _math
+import threading as _threading
+_driver_reports = []
+_driver_reports_lock = _threading.Lock()
+_VALID_CONDITIONS = {'dry', 'wet', 'icy', 'snow'}
+_MAX_REPORTS = 5000
+
+
+def _miles_between(lat1, lon1, lat2, lon2):
+    r = 3958.8
+    p1, p2 = _math.radians(lat1), _math.radians(lat2)
+    dp, dl = _math.radians(lat2 - lat1), _math.radians(lon2 - lon1)
+    a = _math.sin(dp / 2) ** 2 + _math.cos(p1) * _math.cos(p2) * _math.sin(dl / 2) ** 2
+    return 2 * r * _math.asin(_math.sqrt(a))
+
+
+@app.route('/api/feedback/submit', methods=['POST'])
+def feedback_submit():
+    data = request.get_json(silent=True) or {}
+    try:
+        lat, lon = float(data['lat']), float(data['lon'])
+    except (KeyError, TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'lat and lon required'}), 400
+    condition = str(data.get('actual_condition', '')).lower()
+    if condition not in _VALID_CONDITIONS:
+        return jsonify({'success': False, 'error': f'actual_condition must be one of {sorted(_VALID_CONDITIONS)}'}), 400
+
+    report = {
+        'lat': round(lat, 4),   # ~10 m precision is plenty and avoids storing exact spots
+        'lon': round(lon, 4),
+        'actual_condition': condition,
+        'predicted_condition': str(data.get('predicted_condition') or '')[:40],
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        '_t': time.time(),
+    }
+    with _driver_reports_lock:
+        cutoff = time.time() - 24 * 3600
+        _driver_reports[:] = [r for r in _driver_reports if r['_t'] > cutoff][-(_MAX_REPORTS - 1):]
+        _driver_reports.append(report)
+    return jsonify({'success': True})
+
+
+@app.route('/api/feedback/nearby', methods=['GET'])
+def feedback_nearby():
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    if lat is None or lon is None:
+        return jsonify({'success': False, 'error': 'lat and lon required'}), 400
+    radius = min(request.args.get('radius', 5, type=float), 50)
+    max_age_h = min(request.args.get('max_age_hours', 2, type=float), 24)
+    cutoff = time.time() - max_age_h * 3600
+
+    with _driver_reports_lock:
+        recent = [r for r in _driver_reports if r['_t'] > cutoff]
+    out = []
+    for r in recent:
+        d = _miles_between(lat, lon, r['lat'], r['lon'])
+        if d <= radius:
+            out.append({k: v for k, v in r.items() if k != '_t'} | {'distance_miles': round(d, 1)})
+    out.sort(key=lambda r: r['timestamp'], reverse=True)
+    counts = {c: sum(1 for r in out if r['actual_condition'] == c) for c in _VALID_CONDITIONS}
+    return jsonify({'success': True, 'reports': out[:50], 'counts': counts})
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))

@@ -1068,7 +1068,7 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
             // Handle 503 specifically - service may not be available yet
             if (response.status === 503) {
                 console.warn('⚠️ QFPM service unavailable (503) - using fallback');
-                showQFPMFallback('Service temporarily unavailable');
+                showQFPMFallback('Service temporarily unavailable', weatherData);
                 return; // Don't throw error, just use fallback
             }
             
@@ -1098,7 +1098,7 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
             clearQFPMError();
         } else {
             console.warn('⚠️ QFPM missing summary:', Object.keys(data));
-            showQFPMFallback('Incomplete data received');
+            showQFPMFallback('Incomplete data received', weatherData);
         }
     } catch (error) {
         console.error('❌ QFPM error:', error.message);
@@ -1111,41 +1111,47 @@ async function getQFPMPrediction(weatherData, retryCount = 0) {
         }
         
         // Show fallback UI after retries exhausted
-        showQFPMFallback(error.message);
+        showQFPMFallback(error.message, weatherData);
     }
 }
 
-// Show QFPM fallback UI when prediction fails
-function showQFPMFallback(errorMessage) {
+// Show QFPM fallback UI when prediction fails.
+// Uses the real current weather. If there is no temperature, show nothing rather than a made-up number.
+function showQFPMFallback(errorMessage, weatherData) {
     const qfpmAlert = document.getElementById('qfpm-alert');
+    const temp = weatherData?.temperature;
+    const humidity = weatherData?.humidity ?? 70;
+    const wind = weatherData?.wind_speed ?? 5;
+
+    if (temp == null || isNaN(temp)) {
+        if (qfpmAlert) qfpmAlert.textContent = '⚠️ Short-term freeze watch unavailable (no temperature yet)';
+        ['30', '60', '90'].forEach(m => {
+            const el = document.getElementById(`qfpm-${m}`);
+            const bar = document.getElementById(`qfpm-${m}-bar`);
+            if (el) el.textContent = '--%';
+            if (bar) bar.style.width = '0%';
+        });
+        console.warn('⚠️ QFPM fallback skipped, no temperature:', errorMessage);
+        return;
+    }
+
+    // Same simple model as the server fallback: risk rises as temp drops toward and below freezing
+    const base = Math.max(0, Math.min(100, (35 - temp) * 10));
+    const humidityFactor = humidity / 100;
+    const windFactor = Math.max(0.5, 1 - wind / 20);
+    const r30 = Math.round(base * 0.7 * humidityFactor * windFactor);
+    const r60 = Math.round(base * 0.85 * humidityFactor * windFactor);
+    const r90 = Math.round(base * humidityFactor * windFactor);
+
     if (qfpmAlert) {
-        qfpmAlert.textContent = '⚠️ Short-term freeze watch unavailable - using local conditions backup';
+        qfpmAlert.textContent = `ℹ️ Estimated from current weather (${Math.round(temp)}°F)`;
         qfpmAlert.style.borderColor = '#FFA500';
         qfpmAlert.style.backgroundColor = 'rgba(255, 165, 0, 0.1)';
     }
-    
-    // Show simplified forecast based on current conditions
-    const temp = currentLocation.weather?.temperature || 32;
-    const humidity = currentLocation.weather?.humidity || 70;
-    
-    // Basic risk estimation
-    let riskProb = 0;
-    if (temp < 32) riskProb = 70;
-    else if (temp < 35) riskProb = 50;
-    else if (temp < 40) riskProb = 30;
-    else riskProb = 10;
-    
-    // Adjust for humidity
-    if (humidity > 80) riskProb += 15;
-    else if (humidity > 70) riskProb += 10;
-    
-    riskProb = Math.min(riskProb, 95);
-    
-    // Update with fallback values
-    updateForecastItem('30', riskProb);
-    updateForecastItem('60', riskProb + 5);
-    updateForecastItem('90', riskProb + 10);
-    
+    updateForecastItem('30', r30);
+    updateForecastItem('60', r60);
+    updateForecastItem('90', r90);
+
     console.warn('⚠️ Using fallback QFPM estimation:', errorMessage);
 }
 
@@ -1540,10 +1546,16 @@ async function getPrecipitationType() {
 // Bridge Freeze Risk
 // Looks up REAL bridges near the user (OpenStreetMap) and rates each one
 async function getBridgeFreezeRisk(weatherData) {
-    if (!weatherData || currentLocation.lat == null || currentLocation.lng == null) return;
+    if (!weatherData || currentLocation.lat == null || currentLocation.lng == null) {
+        showBridgeUnavailable('Waiting for your location and weather...');
+        return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
     try {
         const response = await fetch(`${API_BASE}/api/bridge/nearby`, {
             method: 'POST',
+            signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 lat: currentLocation.lat,
@@ -1560,14 +1572,34 @@ async function getBridgeFreezeRisk(weatherData) {
             })
         });
 
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                updateBridgeDisplay(data);
-            }
+        const data = await response.json().catch(() => null);
+        if (response.ok && data?.success) {
+            updateBridgeDisplay(data);
+        } else {
+            showBridgeUnavailable(data?.error ? `Bridge check failed: ${data.error}` : `Bridge check failed (HTTP ${response.status})`);
         }
     } catch (error) {
         console.error('❌ Bridge freeze error:', error);
+        showBridgeUnavailable(error.name === 'AbortError'
+            ? 'Bridge lookup is taking too long. Will try again on the next refresh.'
+            : 'Could not reach the bridge service.');
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+// Never leave the bridge card stuck on "Finding bridges..."
+function showBridgeUnavailable(message) {
+    const listEl = document.getElementById('bridge-list');
+    const warningEl = document.getElementById('bridge-warning');
+    const factorsEl = document.getElementById('bridge-factors');
+    if (listEl) listEl.innerHTML = `<div class="bridge-empty">${escapeHtml(message)}</div>`;
+    if (factorsEl && factorsEl.textContent.includes('Calculating')) {
+        factorsEl.innerHTML = '<div class="factor-item">• Bridge data unavailable right now</div>';
+    }
+    if (warningEl && warningEl.textContent.includes('Analyzing')) {
+        warningEl.textContent = '⚠️ Bridges ice before roads. Use extra caution on bridges and overpasses when it is near freezing.';
+        warningEl.style.color = '#eab308';
     }
 }
 
@@ -2261,7 +2293,7 @@ async function toggleHeatmapLayer(type) {
         
         if (data.success && data.heatmap_data && data.heatmap_data.length > 0) {
             displayHeatmap(type, data.heatmap_data);
-            showAlert(`✅ ${type} heatmap loaded!`, 'success');
+            showAlert(`ℹ️ ${type} heatmap is a demo layer with sample values, not live data`, 'info');
         } else {
             throw new Error(data.error || 'No heatmap data available');
         }
