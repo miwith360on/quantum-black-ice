@@ -167,6 +167,15 @@ function registerServiceWorker() {
 // Helper function to use default location
 function useDefaultLocation(reason) {
     console.log('📍 Using default location:', reason);
+    // If the background tracker already found the real position, keep it
+    if (currentLocation.lat && currentLocation.lng) {
+        const label = document.getElementById('location-text')?.textContent || '';
+        if (label.includes('Getting location')) {
+            updateLocationText(`${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`);
+            reverseGeocode(currentLocation.lat, currentLocation.lng).catch(() => {});
+        }
+        return;
+    }
     currentLocation.lat = 42.3314;
     currentLocation.lng = -83.0458;
     updateLocationText('Detroit, MI (default)');
@@ -247,9 +256,7 @@ async function getUserLocation() {
     // Add manual timeout fallback (in case browser timeout fails)
     let locationTimeout = setTimeout(() => {
         console.warn('⏰ Manual location timeout triggered (15s)');
-        if (!currentLocation.lat || currentLocation.lat === 0) {
-            useDefaultLocation('Location request timed out after 15 seconds.');
-        }
+        useDefaultLocation('Location request timed out after 15 seconds.');
     }, 15000);
     
     navigator.geolocation.getCurrentPosition(
@@ -475,10 +482,13 @@ async function reverseGeocode(lat, lng) {
         const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
         );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        
-        const locationName = data.address.city || data.address.town || data.address.village || 'Unknown';
-        updateLocationText(locationName);
+        const a = data.address || {};
+        const place = a.city || a.town || a.village || a.suburb || a.township || a.municipality || a.county;
+        const state = a['ISO3166-2-lvl4'] ? a['ISO3166-2-lvl4'].split('-')[1] : a.state;
+        if (!place) throw new Error('No place name');
+        updateLocationText(state ? `${place}, ${state}` : place);
     } catch (error) {
         console.error('Reverse geocode error:', error);
         updateLocationText(`${lat.toFixed(2)}, ${lng.toFixed(2)}`);
@@ -2154,7 +2164,7 @@ async function fetch24HourRiskForecast() {
         }
     } catch (error) {
         console.error('❌ 24-hour forecast error:', error);
-        showAlert(`❌ Unable to load forecast: ${error.message}`, 'error');
+        showAlert('⚠️ 24-hour forecast unavailable right now. Will try again on the next refresh.', 'warning');
     }
 }
 
@@ -2722,6 +2732,10 @@ function startBackgroundLocationTracking() {
                 currentLocation.lng = newLng;
                 
                 console.log(`📍 Location updated: moved ${(distance * 1000).toFixed(0)}m`);
+
+                // Show where we are (this path used to leave the label stuck on "Getting location...")
+                updateLocationText(`${newLat.toFixed(4)}, ${newLng.toFixed(4)}`);
+                reverseGeocode(newLat, newLng).catch(() => {});
                 
                 // Update map
                 map.setView([newLat, newLng]);

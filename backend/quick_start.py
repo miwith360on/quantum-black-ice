@@ -11,6 +11,7 @@ from flask_socketio import SocketIO
 from datetime import datetime
 import os
 import time
+import requests
 from dotenv import load_dotenv
 from logging_config import setup_logging, log_api_request, log_prediction, log_error
 
@@ -229,6 +230,24 @@ def get_current_weather():
         print(f"❌ Weather endpoint error: {e}")
         return jsonify({'error': str(e)}), 500
 
+def _black_ice_score(temp_f, humidity, dew_f=None, precip=0.0, road_f=None):
+    """
+    Fast, explainable black ice score (0-100).
+    Needs two things: a road at/near freezing, and water on it (wet road or air near saturation).
+    """
+    if dew_f is None:
+        dew_f = BridgeFreezeCalculator._dew_point_f(temp_f, humidity if humidity is not None else 70)
+    surface = road_f if road_f is not None else temp_f
+    cold = max(0.0, min(1.0, (38 - surface) / 10))      # 0 at 38°F+, 1 at 28°F and below
+    spread = temp_f - dew_f
+    moisture = 1.0 if (precip or 0) > 0 else max(0.15, min(1.0, 1 - (spread - 2) / 10))
+    risk = round(cold * moisture, 3)
+    percent = int(round(risk * 100))
+    level = ("Very Low" if percent < 10 else "Low" if percent < 30 else
+             "Medium" if percent < 55 else "High" if percent < 80 else "Very High")
+    return {'risk': risk, 'percent': percent, 'level': level, 'spread': spread}
+
+
 # ML prediction endpoint with flexible input
 @app.route('/api/ml/predict', methods=['POST'])
 def ml_predict():
@@ -254,24 +273,8 @@ def ml_predict():
         except (TypeError, ValueError):
             precip = 0.0
 
-        # 1) How cold is the road? 0 at 38°F and above, 1 at 28°F and below
-        cold = max(0.0, min(1.0, (38 - surface) / 10))
-        # 2) Is there water to freeze? Wet road, or air close to saturation (dew point near temp)
-        spread = temp - dew
-        moisture = 1.0 if precip > 0 else max(0.15, min(1.0, 1 - (spread - 2) / 10))
-        freeze_risk = round(cold * moisture, 3)
-        percent = int(round(freeze_risk * 100))
-
-        if percent < 10:
-            level = "Very Low"
-        elif percent < 30:
-            level = "Low"
-        elif percent < 55:
-            level = "Medium"
-        elif percent < 80:
-            level = "High"
-        else:
-            level = "Very High"
+        score = _black_ice_score(temp, humidity, dew, precip, surface)
+        freeze_risk, percent, level, spread = score['risk'], score['percent'], score['level'], score['spread']
 
         # Confidence: we know more when we have a measured road temp and a real dew point
         confidence = 70 + (15 if "road_temp" in data else 0) + (10 if _first_present(data, "dew_point", "dew") is not None else 0)
@@ -1004,81 +1007,82 @@ def get_traffic_tile_url():
 
 # ============ VISUALIZATION API ENDPOINTS ============
 
+_forecast_cache = {}
+
+
+def _openmeteo_hourly(lat, lon, hours=24):
+    """Real hourly forecast from Open-Meteo (free, no key, worldwide), in °F and mph."""
+    url = ("https://api.open-meteo.com/v1/forecast"
+           f"?latitude={lat}&longitude={lon}"
+           "&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,precipitation,cloud_cover,wind_speed_10m"
+           "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=2")
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    h = r.json()['hourly']
+    now = datetime.now().strftime('%Y-%m-%dT%H:00')
+    start = next((i for i, t in enumerate(h['time']) if t >= now), 0)
+    out = []
+    for i in range(start, min(start + hours, len(h['time']))):
+        out.append({
+            'time': h['time'][i],
+            'temperature': h['temperature_2m'][i],
+            'humidity': h['relative_humidity_2m'][i],
+            'dew_point': h['dew_point_2m'][i],
+            'precipitation': h['precipitation'][i],
+            'wind_speed': h['wind_speed_10m'][i],
+            'cloud_cover': h['cloud_cover'][i],
+        })
+    return out
+
+
 @app.route('/api/forecast/24hour', methods=['GET'])
 def get_24hour_forecast():
-    """Get 24-hour risk forecast for visualization"""
+    """24-hour black ice risk forecast from REAL forecast data (NOAA in the US, Open-Meteo elsewhere)."""
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
-    
-    if not lat or not lon:
-        return jsonify({'error': 'Latitude and longitude required'}), 400
-    
+    if lat is None or lon is None:
+        return jsonify({'success': False, 'error': 'Latitude and longitude required'}), 400
+
+    key = (round(lat, 2), round(lon, 2))
+    cached = _forecast_cache.get(key)
+    if cached and time.time() - cached[0] < 15 * 60:
+        return jsonify(cached[1])
+
+    hours, source = None, None
     try:
-        # Get hourly forecast
-        hourly_data = []
-        
-        # Use NOAA for US locations
-        try:
-            forecast = noaa_service.get_hourly_forecast(lat, lon, hours=24)
-            
-            for hour in forecast:
-                # Calculate black ice probability for each hour
-                weather_data = {
-                    'temperature': hour.get('temperature', 32),
-                    'humidity': hour.get('humidity', 80),
-                    'wind_speed': hour.get('wind_speed', 5),
-                    'precipitation': hour.get('precipitation', 0),
-                    'dew_point': hour.get('dew_point', 30),
-                    'cloud_cover': hour.get('cloud_cover', 50)
-                }
-                
-                # Get quantum prediction
-                prediction = quantum_predictor.predict(weather_data)
-                
-                hourly_data.append({
-                    'time': hour.get('time'),
-                    'temperature': hour.get('temperature'),
-                    'black_ice_probability': prediction.get('probability', 0) * 100,
-                    'risk_level': prediction.get('risk_level', 'Low')
-                })
-        except Exception as e:
-            # Fallback to synthetic hourly data
-            print(f"NOAA forecast failed, using fallback: {e}")
-            from datetime import timedelta
-            now = datetime.now()
-            
-            for i in range(24):
-                hour_time = now + timedelta(hours=i)
-                # Simulate temperature variation
-                temp = 32 + (i % 12) - 6  # Varies between 26F and 38F
-                humidity = 70 + (i % 20)
-                
-                weather_data = {
-                    'temperature': temp,
-                    'humidity': humidity,
-                    'wind_speed': 5 + (i % 10),
-                    'precipitation': 0.1 if i % 4 == 0 else 0,
-                    'dew_point': temp - 5,
-                    'cloud_cover': 50 + (i % 30)
-                }
-                
-                prediction = quantum_predictor.predict(weather_data)
-                
-                hourly_data.append({
-                    'time': hour_time.strftime('%Y-%m-%dT%H:%M:%S'),
-                    'temperature': temp,
-                    'black_ice_probability': prediction.get('probability', 0) * 100,
-                    'risk_level': prediction.get('risk_level', 'Low')
-                })
-        
-        return jsonify({
-            'success': True,
-            'hourly_forecast': hourly_data,
-            'location': {'lat': lat, 'lon': lon}
-        })
+        noaa = noaa_service.get_hourly_forecast(lat, lon, hours=24)
+        if noaa:
+            hours, source = noaa, 'NOAA'
     except Exception as e:
-        print(f"24-hour forecast error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        app.logger.warning(f"NOAA hourly forecast failed: {e}")
+    if not hours:
+        try:
+            hours, source = _openmeteo_hourly(lat, lon), 'Open-Meteo'
+        except Exception as e:
+            app.logger.error(f"Open-Meteo hourly forecast failed: {e}")
+
+    if not hours:
+        # No real data: say so instead of drawing made-up numbers
+        return jsonify({'success': False, 'error': 'Forecast is temporarily unavailable'}), 503
+
+    hourly_data = []
+    for hour in hours:
+        temp = hour.get('temperature')
+        if temp is None:
+            continue
+        score = _black_ice_score(float(temp), hour.get('humidity'), hour.get('dew_point'),
+                                 hour.get('precipitation') or 0)
+        hourly_data.append({
+            'time': hour.get('time'),
+            'temperature': temp,
+            'black_ice_probability': score['percent'],
+            'risk_level': score['level'],
+        })
+
+    result = {'success': True, 'hourly_forecast': hourly_data, 'source': source,
+              'location': {'lat': lat, 'lon': lon}}
+    _forecast_cache[key] = (time.time(), result)
+    return jsonify(result)
 
 
 @app.route('/api/historical/yesterday', methods=['GET'])

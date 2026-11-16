@@ -264,7 +264,8 @@ class NOAAWeatherService:
                     'wind_speed': self._parse_wind_speed(period.get('windSpeed', '0 mph')),
                     'wind_direction': period.get('windDirection'),
                     'precipitation_probability': period.get('probabilityOfPrecipitation', {}).get('value', 0),
-                    'dew_point': period.get('dewpoint', {}).get('value'),
+                    # NOAA gives dew point in °C (unitCode wmoUnit:degC); the app works in °F
+                    'dew_point': self._dewpoint_to_f(period.get('dewpoint')),
                     'humidity': period.get('relativeHumidity', {}).get('value'),
                     'short_forecast': period.get('shortForecast'),
                     'detailed_forecast': period.get('detailedForecast')
@@ -334,6 +335,14 @@ class NOAAWeatherService:
             return None
         return round((celsius * 9/5) + 32, 1)
     
+    def _dewpoint_to_f(self, field):
+        """Convert a NOAA dew point field to °F using its unit (default °C)."""
+        if not field or field.get('value') is None:
+            return None
+        if 'degf' in (field.get('unitCode') or '').lower():
+            return round(float(field['value']), 1)
+        return self._celsius_to_fahrenheit(float(field['value']))
+
     def _speed_to_mph(self, field):
         """Convert a NOAA speed field ({'value': x, 'unitCode': ...}) to mph using its unit."""
         if not field or field.get('value') is None:
