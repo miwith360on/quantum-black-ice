@@ -17,16 +17,18 @@ const WS_BASE = (typeof window !== 'undefined' && window.WS_BASE_URL)
     : (__WS_OVERRIDE || API_BASE);
 
 // App version for cache detection
-const APP_VERSION = '3.0.2-missing-cards-fix';
+const APP_VERSION = '3.1.0';
 
 console.log('🔧 API_BASE configured as:', API_BASE);
 console.log('🌍 Current origin:', window.location.origin);
 console.log('📱 App version:', APP_VERSION);
 
-// Populate environment badge
+// Developer badge (version + API server). Hidden for normal users; add ?debug=1 to the URL to show it.
 try {
     const badge = document.getElementById('env-badge');
-    if (badge) {
+    const debug = new URLSearchParams(window.location.search).has('debug');
+    if (badge && !debug) badge.style.display = 'none';
+    if (badge && debug) {
         const txt = document.getElementById('env-text');
         txt.textContent = `UI ${APP_VERSION} • API ${(API_BASE.replace('https://','')).split('?')[0]}`;
         badge.style.display = 'flex';
