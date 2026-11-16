@@ -489,12 +489,15 @@ def monitor_location():
         
         # Make prediction
         prediction = predictor.predict_hybrid(
-            temperature=weather_data['temperature'],
+            # WeatherService current observations are Fahrenheit and mph;
+            # BlackIcePredictor expects Celsius and meters/second.
+            temperature=(weather_data['temperature'] - 32.0) * 5.0 / 9.0,
             humidity=weather_data['humidity'],
-            dew_point=weather_data['dew_point'],
-            wind_speed=weather_data['wind_speed'],
+            dew_point=(weather_data['dew_point'] - 32.0) * 5.0 / 9.0,
+            wind_speed=weather_data['wind_speed'] / 2.2369362921,
             precipitation=weather_data.get('precipitation', 0),
-            road_temperature=weather_data.get('road_temperature'),
+            road_temperature=((weather_data['road_temperature'] - 32.0) * 5.0 / 9.0
+                              if weather_data.get('road_temperature') is not None else None),
             cloud_cover=weather_data.get('cloud_cover', 50),
             visibility=weather_data.get('visibility'),
             hour=weather_data.get('hour'),
