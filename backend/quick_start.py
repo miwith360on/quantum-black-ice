@@ -238,21 +238,55 @@ def ml_predict():
         data = request.get_json(force=True)
         logger.debug("ML prediction request", extra={'data': data})
 
-        # Accept flexible key names to prevent 400 errors
-        temp = float(data.get("temperature") or data.get("temp") or 32.0)
-        humidity = float(data.get("humidity") or 50.0)
-        dew = float(data.get("dew_point") or data.get("dew") or 28.0)
-        road_temp = float(data.get("road_temp") or temp)
+        # Accept flexible key names. Keep real zeros (0°F is a real reading, not "missing").
+        temp = _first_present(data, "temperature", "temp")
+        if temp is None:
+            return jsonify({"success": False, "error": "temperature (°F) required"}), 400
+        temp = float(temp)
+        humidity = float(_first_present(data, "humidity", default=70))
+        dew = _first_present(data, "dew_point", "dew")
+        if dew is None:
+            dew = BridgeFreezeCalculator._dew_point_f(temp, humidity)
+        dew = float(dew)
+        surface = float(_first_present(data, "road_temp", default=temp))
+        try:
+            precip = float(_first_present(data, "precipitation", default=0) or 0)
+        except (TypeError, ValueError):
+            precip = 0.0
 
-        # Simple ML formula for black ice risk
-        freeze_risk = max(0.0, min(1.0, (humidity / 100) * (32 - temp) / 32))
-        confidence = round(0.75 + 0.1 * (1 - abs(32 - temp) / 32), 2)
+        # 1) How cold is the road? 0 at 38°F and above, 1 at 28°F and below
+        cold = max(0.0, min(1.0, (38 - surface) / 10))
+        # 2) Is there water to freeze? Wet road, or air close to saturation (dew point near temp)
+        spread = temp - dew
+        moisture = 1.0 if precip > 0 else max(0.15, min(1.0, 1 - (spread - 2) / 10))
+        freeze_risk = round(cold * moisture, 3)
+        percent = int(round(freeze_risk * 100))
+
+        if percent < 10:
+            level = "Very Low"
+        elif percent < 30:
+            level = "Low"
+        elif percent < 55:
+            level = "Medium"
+        elif percent < 80:
+            level = "High"
+        else:
+            level = "Very High"
+
+        # Confidence: we know more when we have a measured road temp and a real dew point
+        confidence = 70 + (15 if "road_temp" in data else 0) + (10 if _first_present(data, "dew_point", "dew") is not None else 0)
 
         return jsonify({
             "success": True,
             "risk": freeze_risk,
+            "risk_percent": percent,
+            "risk_level": level,
             "confidence": confidence,
-            "prediction": "high_risk" if freeze_risk > 0.7 else "moderate_risk" if freeze_risk > 0.4 else "low_risk"
+            "prediction": level,
+            "factors": {"road_temp_f": round(surface, 1), "dew_point_spread_f": round(spread, 1), "wet_road": precip > 0},
+            "message": f"{level} black ice risk: road about {surface:.0f}°F, " + (
+                "wet road" if precip > 0 else
+                "air near saturation" if spread <= 3 else "dry air")
         }), 200
 
     except Exception as e:

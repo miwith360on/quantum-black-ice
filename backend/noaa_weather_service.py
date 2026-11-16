@@ -206,9 +206,10 @@ class NOAAWeatherService:
                 'temperature': self._celsius_to_fahrenheit(properties.get('temperature', {}).get('value')),
                 'dew_point': self._celsius_to_fahrenheit(properties.get('dewpoint', {}).get('value')),
                 'humidity': properties.get('relativeHumidity', {}).get('value'),
-                'wind_speed': self._mps_to_mph(properties.get('windSpeed', {}).get('value')),
+                # NOAA reports wind in km/h (unitCode wmoUnit:km_h-1), not m/s
+                'wind_speed': self._speed_to_mph(properties.get('windSpeed')),
                 'wind_direction': properties.get('windDirection', {}).get('value'),
-                'wind_gust': self._mps_to_mph(properties.get('windGust', {}).get('value')),
+                'wind_gust': self._speed_to_mph(properties.get('windGust')),
                 'pressure': self._pa_to_mb(properties.get('barometricPressure', {}).get('value')),
                 'visibility': properties.get('visibility', {}).get('value'),  # meters
                 'clouds': self._parse_cloud_cover(properties.get('textDescription', '')),
@@ -333,6 +334,21 @@ class NOAAWeatherService:
             return None
         return round((celsius * 9/5) + 32, 1)
     
+    def _speed_to_mph(self, field):
+        """Convert a NOAA speed field ({'value': x, 'unitCode': ...}) to mph using its unit."""
+        if not field or field.get('value') is None:
+            return None
+        value = float(field['value'])
+        unit = (field.get('unitCode') or '').lower()
+        if 'km_h' in unit:
+            return round(value * 0.621371, 1)
+        if 'm_s' in unit:
+            return round(value * 2.237, 1)
+        if 'kn' in unit:
+            return round(value * 1.15078, 1)
+        # NOAA observations default to km/h
+        return round(value * 0.621371, 1)
+
     def _mps_to_mph(self, mps):
         """Convert meters per second to miles per hour"""
         if mps is None:

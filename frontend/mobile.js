@@ -702,10 +702,19 @@ function updatePredictionDisplay(data) {
         'Very High': 95
     };
     
-    const riskValue = riskMap[riskLevel] || 0;
-    
+    // Prefer the real number from the server; fall back to the level name
+    let riskValue;
+    if (typeof data.risk_percent === 'number') riskValue = data.risk_percent;
+    else if (typeof data.risk === 'number') riskValue = Math.round(data.risk * 100);
+    else if (typeof data.probability === 'number') riskValue = Math.round(data.probability * 100);
+    else riskValue = riskMap[riskLevel] ?? 0;
+    riskValue = Math.max(0, Math.min(100, riskValue));
+
+    // Friendly label: "low_risk" -> "Low risk"
+    const prettyLevel = String(riskLevel).replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase());
+
     riskPercentage.textContent = `${riskValue}%`;
-    riskLabel.textContent = riskLevel;
+    riskLabel.textContent = /risk$/i.test(prettyLevel) ? prettyLevel : `${prettyLevel} risk`;
     
     // Update circle color
     riskCircle.className = 'risk-circle';
@@ -734,7 +743,7 @@ function updatePredictionDisplay(data) {
     
     // Update prediction result
     const predictionResult = document.getElementById('prediction-result');
-    let resultText = data.message || `Risk: ${riskLevel} (${Math.round(confidence)}% confidence)`;
+    let resultText = data.message || `Risk: ${prettyLevel} (${Math.round(confidence)}% confidence)`;
     
     // Add data freshness info if available
     if (data.data_freshness) {
