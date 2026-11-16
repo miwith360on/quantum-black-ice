@@ -4,6 +4,7 @@ Handles communication with OpenWeatherMap API
 """
 
 import requests
+import math
 from typing import Dict, Optional
 from datetime import datetime
 import logging
@@ -142,7 +143,9 @@ class WeatherService:
         a = 17.27
         b = 237.7
         
-        alpha = ((a * temperature) / (b + temperature)) + (humidity / 100.0)
+        if not 0 < humidity <= 100:
+            raise ValueError('Relative humidity must be greater than 0 and at most 100 percent')
+        alpha = ((a * temperature) / (b + temperature)) + math.log(humidity / 100.0)
         dew_point = (b * alpha) / (a - alpha)
         
         return round(dew_point, 2)
