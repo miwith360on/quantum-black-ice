@@ -1410,6 +1410,13 @@ async function getTrafficHazards(weatherData) {
     }
 }
 
+// The user's local date/time without a timezone, e.g. 2026-11-24T08:40:00 (the server runs on UTC)
+function localIsoTime() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 // Overnight Freeze Prediction
 async function getOvernightPrediction(weatherData) {
     try {
@@ -1420,7 +1427,8 @@ async function getOvernightPrediction(weatherData) {
                 current_temp_f: weatherData.temperature,
                 dew_point_f: weatherData.dew_point,
                 wind_speed_mph: weatherData.wind_speed,
-                cloud_cover_percent: weatherData.cloud_cover || 0
+                cloud_cover_percent: weatherData.cloud_cover ?? weatherData.clouds ?? 0,
+                local_time: localIsoTime()
             })
         });
         
@@ -1717,7 +1725,20 @@ function updateOvernightDisplay(overnightData) {
     const riskLevelEl = document.getElementById('overnight-risk-level');
     const messageEl = document.getElementById('overnight-message');
     
-    if (overnightData.will_freeze_tonight) {
+    const setRiskColor = (level) => {
+        riskBadgeEl.style.background = level === 'CRITICAL' ? '#dc2626' : level === 'HIGH' ? '#f59e0b'
+            : level === 'MODERATE' ? '#eab308' : '#10b981';
+    };
+
+    if (overnightData.already_below_freezing) {
+        // It's already freezing: no future freeze time to show
+        freezeTimeEl.textContent = 'Now';
+        countdownEl.textContent = `already ${Math.round(overnightData.current_temp_f)}°F`;
+        const level = (overnightData.risk_level || 'MODERATE').toUpperCase();
+        riskLevelEl.textContent = level;
+        setRiskColor(level);
+        messageEl.textContent = overnightData.warning_message || '❄️ Already below freezing';
+    } else if (overnightData.will_freeze_tonight && overnightData.freeze_time) {
         const freezeTime = new Date(overnightData.freeze_time);
         const hours = freezeTime.getHours();
         const minutes = freezeTime.getMinutes();
@@ -1725,7 +1746,8 @@ function updateOvernightDisplay(overnightData) {
         const displayHours = hours % 12 || 12;
         
         freezeTimeEl.textContent = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-        countdownEl.textContent = `in ${overnightData.hours_until_freeze.toFixed(1)} hours`;
+        countdownEl.textContent = overnightData.hours_until_freeze != null
+            ? `in ${overnightData.hours_until_freeze.toFixed(1)} hours` : 'tonight';
         
         // Risk level styling
         const riskLevel = overnightData.risk_level.toUpperCase();
@@ -1750,8 +1772,8 @@ function updateOvernightDisplay(overnightData) {
         messageEl.textContent = '✅ Roads should remain clear overnight';
     }
     
-    minTempEl.textContent = `${overnightData.minimum_temp_f.toFixed(0)}°F`;
-    coolingRateEl.textContent = `${overnightData.cooling_rate_per_hour.toFixed(1)}°F/hr`;
+    if (overnightData.minimum_temp_f != null) minTempEl.textContent = `${overnightData.minimum_temp_f.toFixed(0)}°F`;
+    if (overnightData.cooling_rate_per_hour != null) coolingRateEl.textContent = `${overnightData.cooling_rate_per_hour.toFixed(1)}°F/hr`;
     
     console.log('🌙 Overnight prediction updated:', overnightData.freeze_time);
 }

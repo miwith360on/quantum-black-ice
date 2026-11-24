@@ -885,9 +885,19 @@ def predict_overnight_freeze():
     try:
         from datetime import datetime
         
+        # The server clock is UTC; sunrise/overnight math needs the user's local time
+        local_now = datetime.now()
+        if data.get('local_time'):
+            try:
+                local_now = datetime.fromisoformat(str(data['local_time'])[:19])
+            except ValueError:
+                pass
+        if data.get('current_temp_f') is None:
+            return jsonify({'error': 'current_temp_f required'}), 400
+
         prediction = overnight_cooling.predict_freeze_time(
-            current_temp_f=data.get('current_temp_f'),
-            current_time=datetime.now(),
+            current_temp_f=float(data.get('current_temp_f')),
+            current_time=local_now,
             dew_point_f=data.get('dew_point_f'),
             wind_speed_mph=data.get('wind_speed_mph', 5),
             cloud_cover_percent=data.get('cloud_cover_percent', 0)

@@ -47,6 +47,29 @@ class OvernightCoolingPredictor:
             }
         """
         
+        # Already at or below freezing: there is no future "freeze time" to predict
+        if current_temp_f is not None and current_temp_f <= 32.0:
+            spread = (current_temp_f - dew_point_f) if dew_point_f is not None else None
+            moist = spread is not None and spread <= 4
+            return {
+                'will_freeze_tonight': True,
+                'already_below_freezing': True,
+                'freeze_time': None,
+                'freeze_time_display': None,
+                'hours_until_freeze': 0.0,
+                'minimum_temp_f': round(current_temp_f, 1),
+                'current_temp_f': current_temp_f,
+                'cooling_rate_per_hour': 0.0,
+                'hours_until_sunrise': round(self._hours_until_sunrise(current_time), 1),
+                'risk_level': 'HIGH' if moist else 'MODERATE',
+                'warning_message': (
+                    f"🧊 Already below freezing ({current_temp_f:.0f}°F) and the air is moist. "
+                    "Expect icy spots, especially on bridges." if moist else
+                    f"❄️ Already below freezing ({current_temp_f:.0f}°F). Roads are dry for now, "
+                    "but any wet spot or melt can freeze."),
+                'is_critical_window': self._is_critical_window(current_time)
+            }
+
         # Calculate hours until sunrise (cooling stops at sunrise)
         hours_until_sunrise = self._hours_until_sunrise(current_time)
         

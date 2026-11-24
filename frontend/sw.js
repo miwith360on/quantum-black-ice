@@ -1,6 +1,6 @@
 // Service Worker for PWA - Offline Support & Caching
-const CACHE_NAME = 'black-ice-v1.7.0';
-const API_CACHE_NAME = 'black-ice-api-v1.1';
+const CACHE_NAME = 'black-ice-v1.8.0';
+const API_CACHE_NAME = 'black-ice-api-v1.2';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -54,7 +54,9 @@ self.addEventListener('fetch', (event) => {
     // Handle API requests with network-first strategy
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(
-            networkFirstStrategy(event.request, API_CACHE_NAME, 5000) // 5 second timeout
+            // 45s: some answers (bridge lookup, freeze model) take longer than a few seconds.
+            // A short timeout here made the app say "Offline" when the server was just busy.
+            networkFirstStrategy(event.request, API_CACHE_NAME, 45000)
         );
         return;
     }
@@ -114,7 +116,7 @@ async function networkFirstStrategy(request, cacheName, timeout = 10000) {
         // Return offline page or error response
         return new Response(
             JSON.stringify({ 
-                error: 'Offline', 
+                error: navigator.onLine === false ? 'Offline' : 'Server not reachable right now',
                 message: 'No network connection and no cached data available' 
             }),
             { 
