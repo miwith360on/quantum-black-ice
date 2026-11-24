@@ -1323,7 +1323,7 @@ async function getAccuracyUpgrades(weatherData) {
     await Promise.all([
         getOvernightPrediction(weatherData),
         getWetPavementStatus(),
-        getRoadTemperature(),
+        getRoadTemperature(weatherData),
         getPrecipitationType(),
         getBridgeFreezeRisk(weatherData),
         getTrafficHazards(weatherData)
@@ -1462,7 +1462,9 @@ async function getWetPavementStatus() {
 }
 
 // Real Road Temperature from RWIS
-async function getRoadTemperature() {
+let lastWeatherForRoadTemp = null;
+async function getRoadTemperature(weatherData) {
+    if (weatherData) lastWeatherForRoadTemp = weatherData;
     try {
         const response = await fetch(
             `${API_BASE}/api/rwis/road-temp?lat=${currentLocation.lat}&lon=${currentLocation.lng}&radius_miles=25`
@@ -1477,7 +1479,8 @@ async function getRoadTemperature() {
         
         // Backend returns road_temp_data; older frontend expected road_temp. Support both.
         const roadTempPayload = data.road_temp || data.road_temp_data;
-        if (data.success && roadTempPayload) {
+        // Only use it if a sensor actually gave a temperature; otherwise use the estimate
+        if (data.success && roadTempPayload && roadTempPayload.road_temp_f != null) {
             updateRoadTempDisplay(roadTempPayload);
         } else {
             console.warn('⚠️ Road temp payload missing expected key:', Object.keys(data));
@@ -1494,14 +1497,16 @@ async function getRoadTemperature() {
 // Fallback: Get modeled road temperature using heat balance formula
 async function getModeledRoadTemperature() {
     try {
-        // Get current weather data (get from UI or use defaults)
+        // Use the weather data we already have; fall back to the numbers on screen
+        const w = lastWeatherForRoadTemp || {};
         const tempElement = document.getElementById('temp-text');
         const windElement = document.getElementById('wind-text');
+        const airTempText = w.temperature != null ? String(w.temperature)
+            : (tempElement ? tempElement.textContent.replace('°F', '').trim() : null);
+        const windText = w.wind_speed != null ? String(w.wind_speed)
+            : (windElement ? windElement.textContent.replace('mph', '').trim() : null);
         
-        const airTempText = tempElement ? tempElement.textContent.replace('°F', '').trim() : null;
-        const windText = windElement ? windElement.textContent.replace('mph', '').trim() : null;
-        
-        if (!airTempText || airTempText === '--') {
+        if (!airTempText || airTempText === '--' || isNaN(parseFloat(airTempText))) {
             console.warn('⚠️ No weather data available for heat balance model');
             const errorPayload = {
                 road_temp_f: null,
@@ -1514,9 +1519,10 @@ async function getModeledRoadTemperature() {
         const airTemp = parseFloat(airTempText);
         const windSpeed = windText && windText !== '--' ? parseFloat(windText) : 5;
         
-        // Determine if daytime (simple approximation - could be enhanced)
+        // Day or night: use the weather service's answer when we have it
         const hour = new Date().getHours();
-        const isDatetime = hour >= 6 && hour <= 18;
+        const isDatetime = w.is_day != null ? Boolean(w.is_day) : (hour >= 7 && hour < 17);
+        const cloudCover = w.cloud_cover ?? w.clouds ?? 50;
         
         console.log(`📊 Calling heat balance model: temp=${airTemp}F, wind=${windSpeed}mph, daytime=${isDatetime}`);
         console.log(`📊 API Base URL: ${API_BASE}`);
@@ -1528,7 +1534,7 @@ async function getModeledRoadTemperature() {
             body: JSON.stringify({
                 air_temp: airTemp,
                 wind_speed: windSpeed,
-                cloud_cover: 50,  // Default assumption
+                cloud_cover: cloudCover,
                 is_daytime: isDatetime
             })
         });
@@ -1566,8 +1572,9 @@ async function getModeledRoadTemperature() {
                 road_temp_f: heatData.estimated_road_temp,
                 air_temp_f: airTemp,
                 distance_miles: 0,
-                confidence: heatData.black_ice_probability > 0.7 ? 'HIGH' : heatData.black_ice_probability > 0.4 ? 'MEDIUM' : 'LOW',
-                message: `🔬 Modeled road temp (${heatData.risk_level} risk): ${heatData.explanation}`
+                is_estimate: true,
+                confidence: 'ESTIMATE',
+                message: `🔬 Estimated, no road sensor nearby. ${heatData.explanation}`
             };
             
             updateRoadTempDisplay(modeledPayload);
@@ -1846,12 +1853,17 @@ function updateRoadTempDisplay(roadTempData) {
             tempValueEl.style.color = '#10b981';
         }
         
-        distanceEl.textContent = `${roadTempData.distance_miles.toFixed(1)} mi away`;
+        const sourceEl = document.getElementById('road-temp-source');
+        if (sourceEl) sourceEl.textContent = roadTempData.is_estimate ? 'estimated from weather' : 'from DOT sensor';
+        distanceEl.textContent = roadTempData.is_estimate ? 'None nearby'
+            : (roadTempData.distance_miles != null ? `${roadTempData.distance_miles.toFixed(1)} mi away` : '--');
         
         const confidence = (roadTempData.confidence || 'low').toUpperCase();
         confidenceEl.textContent = confidence;
         
-        if (confidence === 'HIGH') {
+        if (confidence === 'ESTIMATE') {
+            confidenceEl.style.background = '#8b5cf6';
+        } else if (confidence === 'HIGH') {
             confidenceEl.style.background = '#10b981';
         } else if (confidence === 'MEDIUM') {
             confidenceEl.style.background = '#f59e0b';
@@ -1870,10 +1882,9 @@ function updateRoadTempDisplay(roadTempData) {
         }
         
         // Determine if this is a modeled or real temperature
-        const isModeled = roadTempData.message && roadTempData.message.includes('Modeled');
-        if (isModeled) {
-            messageEl.textContent = `📉 Est. Surface Temp (${roadTempData.message.split('(')[1].split(' risk')[0]})`;
-            messageEl.style.color = '#8b5cf6';  // Purple for modeled/estimated
+        if (roadTempData.is_estimate) {
+            messageEl.textContent = roadTempData.message;
+            messageEl.style.color = '#c4b5fd';  // Purple for estimated
         } else {
             messageEl.textContent = roadTempData.message || '✅ Real road surface temperature from DOT sensor';
             messageEl.style.color = '#10b981';

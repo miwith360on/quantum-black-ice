@@ -68,7 +68,7 @@ class RWISService:
             response = requests.get(
                 f"{self.base_url}/stations/latest",
                 params=params,
-                timeout=30
+                timeout=10
             )
             
             # Handle 403 Forbidden (rate limit or invalid token)
