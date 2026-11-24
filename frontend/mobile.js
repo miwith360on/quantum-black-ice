@@ -3602,6 +3602,7 @@ function clearRoadRiskMarkers() {
 
 function updateHazardsDisplay(data) {
     const content = document.getElementById('hazards-content');
+    if (!content) return;  // card removed: the map layer still shows the markers
     
     const totalBridges = data.bridges?.length || 0;
     const totalOverpasses = data.overpasses?.length || 0;
