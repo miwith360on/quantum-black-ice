@@ -1325,8 +1325,89 @@ async function getAccuracyUpgrades(weatherData) {
         getWetPavementStatus(),
         getRoadTemperature(),
         getPrecipitationType(),
-        getBridgeFreezeRisk(weatherData)
+        getBridgeFreezeRisk(weatherData),
+        getTrafficHazards(weatherData)
     ]);
+}
+
+// Crashes, ice reports and closures near the user (TomTom, via our server)
+let hazardLayer = null;
+async function getTrafficHazards(weatherData) {
+    const card = document.getElementById('traffic-card');
+    const summaryEl = document.getElementById('traffic-summary');
+    const listEl = document.getElementById('traffic-list');
+    const signalEl = document.getElementById('traffic-signal');
+    if (!card) return;
+    try {
+        const params = new URLSearchParams({ lat: currentLocation.lat, lon: currentLocation.lng, radius_mi: 6 });
+        if (weatherData?.temperature != null) params.set('temperature', weatherData.temperature);
+        const response = await fetch(`${API_BASE}/api/traffic/current?${params}`);
+        const data = await response.json();
+
+        if (!data.available) {
+            card.style.display = 'none';   // no key configured: hide the card instead of showing an error
+            return;
+        }
+        card.style.display = '';
+
+        if (data.ice_signal) {
+            signalEl.className = `traffic-signal ${data.ice_signal.level}`;
+            signalEl.textContent = data.ice_signal.message;
+            signalEl.style.display = '';
+        } else {
+            signalEl.style.display = 'none';
+        }
+
+        const sm = data.summary || {};
+        const flow = data.flow || {};
+        let summary;
+        if (data.error && !sm.total) {
+            summary = `⚠️ ${data.error}`;
+        } else if (!sm.total) {
+            summary = `✅ No crashes or hazards reported within ${data.radius_mi} miles`;
+        } else {
+            const parts = [];
+            if (sm.ice_reports) parts.push(`${sm.ice_reports} ice report${sm.ice_reports > 1 ? 's' : ''}`);
+            if (sm.crashes) parts.push(`${sm.crashes} crash${sm.crashes > 1 ? 'es' : ''}`);
+            if (sm.closures) parts.push(`${sm.closures} closure${sm.closures > 1 ? 's' : ''}`);
+            summary = `${parts.length ? parts.join(', ') : `${sm.total} incident${sm.total > 1 ? 's' : ''}`} within ${data.radius_mi} miles`;
+        }
+        if (flow.slowdown_percent != null && flow.slowdown_percent >= 25) {
+            summary += ` · Nearest road ${flow.slowdown_percent}% slower than normal`;
+        }
+        summaryEl.textContent = summary;
+
+        const shown = (data.incidents || []).slice(0, 5);
+        listEl.innerHTML = shown.map(i => {
+            const where = i.from ? (i.to && i.to !== i.from ? `${i.from} → ${i.to}` : i.from) : (i.roads || []).join(', ');
+            const meta = [
+                `${i.distance_mi} mi`,
+                where ? escapeHtml(where) : null,
+                i.delay_min ? `+${i.delay_min} min delay` : null
+            ].filter(Boolean).join(' · ');
+            return `<div class="traffic-row">
+                <span class="traffic-icon">${i.icon}</span>
+                <div class="traffic-info">
+                    <div class="traffic-title">${escapeHtml(i.description)}</div>
+                    <div class="traffic-meta">${meta}</div>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Map markers
+        if (typeof map !== 'undefined' && map && typeof L !== 'undefined') {
+            if (!hazardLayer) hazardLayer = L.layerGroup().addTo(map);
+            hazardLayer.clearLayers();
+            (data.incidents || []).filter(i => i.is_crash || i.is_hazard || i.category_code === 8).forEach(i => {
+                L.marker([i.lat, i.lon], {
+                    icon: L.divIcon({ className: '', html: `<div style="font-size:20px">${i.icon}</div>`, iconSize: [24, 24] })
+                }).bindPopup(`<b>${escapeHtml(i.description)}</b><br>${escapeHtml(i.from || '')}`).addTo(hazardLayer);
+            });
+        }
+    } catch (error) {
+        console.error('❌ Traffic hazards error:', error);
+        summaryEl.textContent = '⚠️ Traffic data unavailable right now';
+    }
 }
 
 // Overnight Freeze Prediction
@@ -3357,15 +3438,17 @@ async function fetchTrafficLayer() {
         
         if (data.available && data.tile_url) {
             if (trafficLayer) map.removeLayer(trafficLayer);
-            trafficLayer = L.tileLayer(data.tile_url, {
+            const url = data.tile_url.startsWith('http') ? data.tile_url : `${API_BASE}${data.tile_url}`;
+            trafficLayer = L.tileLayer(url, {
                 opacity: 0.7,
-                zIndex: 1000
+                zIndex: 1000,
+                attribution: data.attribution || ''
             }).addTo(map);
             console.log('✅ Traffic layer added');
             showAlert('Live traffic overlay enabled', 'success');
         } else {
             console.warn('⚠️ Traffic layer not available:', data.message);
-            showAlert(data.message || 'Traffic layer requires Google Maps API key', 'info');
+            showAlert(data.message || 'Traffic map is not available right now', 'info');
             // Uncheck the box
             document.getElementById('traffic-layer').checked = false;
         }

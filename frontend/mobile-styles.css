@@ -2642,3 +2642,15 @@ body {
     color: #fde68a; border: 1px solid rgba(253, 230, 138, 0.6); vertical-align: middle;
 }
 .demo-note { font-size: 12px; color: rgba(255, 255, 255, 0.7); margin: -4px 0 12px; }
+
+/* Crashes & hazards (TomTom) */
+.traffic-signal { padding: 12px; border-radius: 10px; margin-bottom: 10px; font-weight: 600; font-size: 14px; }
+.traffic-signal.high { background: rgba(220, 38, 38, 0.18); border: 1px solid #dc2626; color: #fecaca; }
+.traffic-signal.moderate { background: rgba(234, 179, 8, 0.15); border: 1px solid #eab308; color: #fde68a; }
+.traffic-summary { font-size: 13px; color: rgba(255, 255, 255, 0.75); margin-bottom: 8px; }
+.traffic-list { display: flex; flex-direction: column; gap: 8px; }
+.traffic-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+.traffic-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.traffic-info { flex: 1; min-width: 0; }
+.traffic-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.traffic-meta { font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-top: 2px; }

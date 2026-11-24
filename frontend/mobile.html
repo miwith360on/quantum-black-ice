@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Mobile Styles (cache bust) -->
-    <link rel="stylesheet" href="mobile-styles.css?v=3.3">
+    <link rel="stylesheet" href="mobile-styles.css?v=3.4">
     
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -427,6 +427,15 @@
                 <div class="bridge-warning" id="bridge-warning">
                     🌉 Analyzing bridge freeze conditions...
                 </div>
+            </div>
+
+            <!-- Crashes & Hazards Card (TomTom) -->
+            <div class="card" id="traffic-card">
+                <h2 class="card-title">🚨 Crashes &amp; Hazards Nearby</h2>
+                <div class="traffic-signal" id="traffic-signal" style="display:none;"></div>
+                <div class="traffic-summary" id="traffic-summary">Checking roads near you...</div>
+                <div class="traffic-list" id="traffic-list"></div>
+                <div class="bridge-source">Live traffic from TomTom</div>
             </div>
 
             <!-- Local Route Outlook Card -->
@@ -836,6 +845,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="config.js?v=3.5"></script>
-    <script src="mobile.js?v=4.0"></script>
+    <script src="mobile.js?v=4.1"></script>
 </body>
 </html>

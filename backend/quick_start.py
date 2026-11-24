@@ -20,7 +20,7 @@ from advanced_weather_calculator import AdvancedWeatherCalculator
 from noaa_weather_service import NOAAWeatherService
 from weather_service import WeatherService
 from road_risk_analyzer import RoadRiskAnalyzer
-from traffic_monitor import TrafficMonitor
+from tomtom_traffic import TomTomTraffic, ice_crash_signal
 
 # NEW: Advanced prediction systems
 from quantum_freeze_matrix import QuantumFreezeProbabilityMatrix
@@ -54,7 +54,7 @@ weather_calculator = AdvancedWeatherCalculator()
 noaa_service = NOAAWeatherService()
 weather_service = WeatherService(api_key=os.getenv('OPENWEATHER_API_KEY'))
 road_analyzer = RoadRiskAnalyzer()
-traffic_monitor = TrafficMonitor(api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
+traffic = TomTomTraffic()  # TOMTOM_API_KEY: crashes, hazards, slowdowns, traffic map
 
 # Initialize NEW advanced systems
 try:
@@ -80,7 +80,7 @@ print("✅ Quantum predictor initialized: 10 qubits")
 print("✅ IoT Mesh Network ready")
 print("✅ BIFI Calculator ready")
 print("✅ Road Risk Analyzer ready (OpenStreetMap)")
-print(f"🚦 Traffic Monitor: {'Active' if os.getenv('GOOGLE_MAPS_API_KEY') else 'Inactive (no API key)'}")
+print(f"🚦 Traffic (TomTom): {'Active' if traffic.available else 'Inactive (set TOMTOM_API_KEY)'}")
 print("✅ RWIS Service ready (Real road temps)")
 print("✅ Precipitation Type Service ready (Freezing rain detection)")
 print("✅ Bridge Freeze Calculator ready")
@@ -975,35 +975,56 @@ def analyze_road_risks():
 # Traffic - current conditions
 @app.route('/api/traffic/current', methods=['GET'])
 def get_traffic_conditions():
-    """Get real-time traffic conditions (requires GOOGLE_MAPS_API_KEY)"""
+    """
+    Crashes, ice reports, closures and slowdowns near the user (TomTom).
+    Query: lat, lon, radius_mi (default 6), temperature (°F, optional: enables the ice-crash warning)
+    """
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
-    radius = request.args.get('radius', type=int, default=5000)
-
-    if not lat or not lon:
+    if lat is None or lon is None:
         return jsonify({'error': 'Latitude and longitude required'}), 400
+    if not traffic.available:
+        return jsonify({'available': False, 'message': 'Traffic data needs TOMTOM_API_KEY'})
 
-    try:
-        traffic = traffic_monitor.get_traffic_conditions(lat, lon, radius)
-        return jsonify(traffic)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    radius_mi = min(request.args.get('radius_mi', 6, type=float), 25)
+    temp = request.args.get('temperature', type=float)
+    found = traffic.get_incidents(lat, lon, radius_km=radius_mi * 1.609)
+    flow = traffic.get_flow(lat, lon)
+    incidents = found.get('incidents', [])
+    return jsonify({
+        'available': True,
+        'incidents': incidents[:25],
+        'summary': {
+            'total': len(incidents),
+            'crashes': sum(1 for i in incidents if i['is_crash']),
+            'ice_reports': sum(1 for i in incidents if i['is_ice']),
+            'closures': sum(1 for i in incidents if i['category_code'] == 8),
+        },
+        'ice_signal': ice_crash_signal(incidents, temp),
+        'flow': flow,
+        'error': found.get('error'),
+        'source': 'TomTom',
+        'radius_mi': radius_mi,
+    })
+
 
 @app.route('/api/traffic/tile-url', methods=['GET'])
 def get_traffic_tile_url():
-    """Return a pseudo tile URL (placeholder) or message if key missing"""
-    zoom = request.args.get('zoom', type=int, default=13)
-    try:
-        tile_url = traffic_monitor.get_traffic_tile_url(zoom)
-        if tile_url:
-            return jsonify({'tile_url': tile_url, 'available': True})
-        else:
-            return jsonify({
-                'available': False,
-                'message': 'Traffic layer requires GOOGLE_MAPS_API_KEY environment variable'
-            })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    """Traffic map layer. Tiles come through our server so the API key is never exposed."""
+    if not traffic.available:
+        return jsonify({'available': False, 'message': 'Traffic map needs TOMTOM_API_KEY'})
+    return jsonify({'available': True, 'tile_url': '/api/traffic/tiles/{z}/{x}/{y}.png',
+                    'attribution': 'Traffic © TomTom'})
+
+
+@app.route('/api/traffic/tiles/<int:z>/<int:x>/<int:y>.png', methods=['GET'])
+def traffic_tile(z, x, y):
+    data = traffic.get_flow_tile(z, x, y)
+    if data is None:
+        return ('', 204)
+    resp = app.response_class(data, mimetype='image/png')
+    resp.headers['Cache-Control'] = 'public, max-age=60'
+    return resp
 
 # ============ VISUALIZATION API ENDPOINTS ============
 
