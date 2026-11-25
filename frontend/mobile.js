@@ -1295,17 +1295,14 @@ function updateMeshDisplay(meshData) {
     document.getElementById('mesh-sensor-count').textContent = meshData.nearby_sensors || 0;
     document.getElementById('mesh-confidence').textContent = meshData.confidence || 'LOW';
     document.getElementById('mesh-freeze-alerts').textContent = meshData.freeze_alerts?.length || 0;
-    document.getElementById('mesh-message').textContent = meshData.message || '🌐 No sensors in area';
-    
-    // Color-code confidence
+    // Demo data: keep it calm so it never reads like a real alert
+    const msgEl = document.getElementById('mesh-message');
+    msgEl.textContent = `Demo: ${meshData.nearby_sensors || 0} simulated sensors. See the cards above for real conditions.`;
+    msgEl.style.opacity = '0.8';
+
+    // Neutral colors for demo numbers
     const confidenceEl = document.getElementById('mesh-confidence');
-    if (meshData.confidence === 'HIGH') {
-        confidenceEl.style.color = '#32CD32';
-    } else if (meshData.confidence === 'MEDIUM') {
-        confidenceEl.style.color = '#FFD700';
-    } else {
-        confidenceEl.style.color = '#FF4500';
-    }
+    confidenceEl.style.color = 'rgba(255, 255, 255, 0.85)';
     
     console.log(`🌐 Mesh: ${meshData.nearby_sensors} sensors, ${meshData.confidence} confidence`);
 }
