@@ -119,11 +119,46 @@ class TomTomTraffic:
                 'is_hazard': bool(event_cats & {2, 3, 5, 11}),
             })
 
+        incidents = self._merge_duplicates(incidents)
+
         # Most relevant first: ice, crashes, other hazards, then everything else; closest first within each
         incidents.sort(key=lambda i: (not i['is_ice'], not i['is_crash'], not i['is_hazard'], i['distance_mi']))
         result = {'available': True, 'incidents': incidents, 'source': 'TomTom'}
         self._put_cached(key, result)
         return result
+
+    @staticmethod
+    def _merge_duplicates(incidents: List[Dict]) -> List[Dict]:
+        """
+        TomTom often reports one real event as several records: a crash plus the closure it caused,
+        or one long closure split into pieces. Merge records that are the same road stretch
+        (same from/to) or sit within ~300 m of each other with matching categories, so each real
+        incident is counted once.
+        """
+        def same_place(a, b):
+            if a.get('from') and a.get('from') == b.get('from') and a.get('to') == b.get('to'):
+                return True
+            close = TomTomTraffic._km(a['lat'], a['lon'], b['lat'], b['lon']) < 0.3
+            related = (a['is_crash'] or b['is_crash']) or a['category_code'] == b['category_code']
+            return close and related
+
+        merged: List[Dict] = []
+        for inc in incidents:
+            hit = next((m for m in merged if same_place(m, inc)), None)
+            if not hit:
+                merged.append(dict(inc))
+                continue
+            # Combine: keep the most serious flags, the closest point and the longest delay
+            for flag in ('is_crash', 'is_ice', 'is_hazard'):
+                hit[flag] = hit[flag] or inc[flag]
+            if inc['is_crash'] and hit['category_code'] != 1:
+                hit['category_code'], hit['category'], hit['icon'] = 1, 'Accident', CATEGORY_ICONS[1]
+            parts = [p.strip() for p in (hit['description'] + ', ' + inc['description']).split(',')]
+            hit['description'] = ', '.join(dict.fromkeys(p for p in parts if p))
+            hit['delay_min'] = max(hit['delay_min'], inc['delay_min'])
+            if inc['distance_mi'] < hit['distance_mi']:
+                hit.update(lat=inc['lat'], lon=inc['lon'], distance_mi=inc['distance_mi'])
+        return merged
 
     # ---------------- flow ----------------
 
