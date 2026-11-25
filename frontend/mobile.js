@@ -933,7 +933,7 @@ async function getAdvancedPredictions(weatherData) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                weather_data: weatherData,
+                weather_data: { ...weatherData, local_time: localIsoTime() },
                 lat: currentLocation.lat,
                 lon: currentLocation.lng
             })
@@ -978,8 +978,7 @@ async function getBIFIPrediction(weatherData, retryCount = 0) {
         const response = await fetch(`${API_BASE}/api/bifi/calculate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ weather_data: weatherData }),
-            timeout: 10000 // 10 second timeout
+            body: JSON.stringify({ weather_data: { ...weatherData, local_time: localIsoTime() } }),
         });
         
         if (!response.ok) {

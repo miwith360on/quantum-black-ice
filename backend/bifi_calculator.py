@@ -52,50 +52,52 @@ class BlackIceFormationIndex:
         Returns:
             Dict with BIFI score and detailed breakdown
         """
-        temp = weather_data.get('temperature', 32)
-        humidity = weather_data.get('humidity', 70)
-        wind_speed = weather_data.get('wind_speed', 5)
-        
-        # Calculate or extract optional parameters
-        surface_temp = weather_data.get('surface_temp', temp - 5)  # Estimate if not provided
-        dew_point = weather_data.get('dew_point', self._calculate_dew_point(temp, humidity))
-        precipitation = weather_data.get('precipitation', 0)
-        time = weather_data.get('time', datetime.now())
-        
-        # Component scores (each 0-100)
+        def num(key, default):
+            v = weather_data.get(key)
+            try:
+                return float(v) if v is not None else default
+            except (TypeError, ValueError):
+                return default
+
+        temp = num('temperature', 32.0)
+        humidity = num('humidity', 70.0)
+        wind_speed = num('wind_speed', 5.0)
+
+        # Only use a surface temperature if we actually have one (no more "air minus 5°F" guess)
+        surface_temp = num('surface_temp', None) if weather_data.get('surface_temp') is not None else temp
+        dew_point = num('dew_point', None)
+        if dew_point is None:
+            dew_point = self._calculate_dew_point(temp, humidity)
+        precipitation = num('precipitation', 0.0)
+        time = weather_data.get('time')
+        if not isinstance(time, datetime):
+            time = None
+            if weather_data.get('local_time'):
+                try:
+                    time = datetime.fromisoformat(str(weather_data['local_time'])[:19])
+                except ValueError:
+                    time = None
+            time = time or datetime.now()
+
+        # Component scores (each 0-100), shown as the bars in the app
         temp_score = self._temperature_component(temp, surface_temp)
         humidity_score = self._humidity_component(humidity)
         dew_point_score = self._dew_point_component(temp, dew_point)
         wind_score = self._wind_component(wind_speed, temp)
         time_score = self._time_component(time)
         precip_score = self._precipitation_component(precipitation, temp)
-        
-        # Weighted combination
-        weights = {
-            'temperature': 0.30,      # Most important
-            'humidity': 0.20,
-            'dew_point': 0.20,
-            'wind': 0.15,
-            'time': 0.10,
-            'precipitation': 0.05
-        }
-        
-        bifi_score = (
-            temp_score * weights['temperature'] +
-            humidity_score * weights['humidity'] +
-            dew_point_score * weights['dew_point'] +
-            wind_score * weights['wind'] +
-            time_score * weights['time'] +
-            precip_score * weights['precipitation']
-        )
-        
-        # Apply surface temperature amplification
-        if surface_temp < 32:
-            bifi_score *= 1.25  # 25% increase if surface already freezing
-        
-        # Cap at 100
-        bifi_score = min(bifi_score, 100)
-        
+
+        # Black ice needs BOTH a cold road AND water on it. Multiply, don't add:
+        # a cold, dry morning or a wet, warm one should both score low.
+        cold = max(0.0, min(1.0, (38 - surface_temp) / 10))           # 0 at 38°F+, 1 at 28°F and below
+        spread = temp - dew_point
+        moisture = 1.0 if precipitation > 0 else max(0.15, min(1.0, 1 - (spread - 2) / 10))
+        base = cold * moisture * 100
+
+        # Small adjustment for time of day: pre-dawn hours are riskiest, sunny afternoons least
+        time_factor = 0.85 + 0.25 * (time_score / 100)                # 0.90 midday .. 1.10 pre-dawn
+        bifi_score = min(100.0, base * time_factor)
+
         # Get risk category
         category = self._get_risk_category(bifi_score)
         
@@ -286,25 +288,25 @@ class BlackIceFormationIndex:
     
     def _get_risk_category(self, bifi_score):
         """Map BIFI score to risk category"""
-        if bifi_score >= 81:
+        if bifi_score >= 80:
             return {
                 'level': 'EXTREME',
                 'color': '#8B0000',  # Dark red
                 'description': 'Black ice formation highly likely - Extreme danger'
             }
-        elif bifi_score >= 61:
+        elif bifi_score >= 55:
             return {
                 'level': 'HIGH',
                 'color': '#FF4500',  # Orange-red
                 'description': 'High probability of black ice - Drive with extreme caution'
             }
-        elif bifi_score >= 41:
+        elif bifi_score >= 30:
             return {
                 'level': 'MODERATE',
                 'color': '#FFD700',  # Gold
                 'description': 'Moderate black ice risk - Exercise caution'
             }
-        elif bifi_score >= 21:
+        elif bifi_score >= 10:
             return {
                 'level': 'LOW',
                 'color': '#9ACD32',  # Yellow-green
@@ -324,18 +326,18 @@ class BlackIceFormationIndex:
         Returns:
             String with actionable advice
         """
-        if bifi_score >= 81:
+        if bifi_score >= 80:
             return ("🔴 EXTREME RISK (BIFI {:.0f}/100): Black ice formation imminent. "
                    "Avoid driving if possible. If you must drive, reduce speed by 50% "
                    "and increase following distance to 8+ seconds.").format(bifi_score)
-        elif bifi_score >= 61:
+        elif bifi_score >= 55:
             return ("🟠 HIGH RISK (BIFI {:.0f}/100): Black ice likely on bridges, "
                    "overpasses, and shaded areas. Reduce speed, avoid sudden braking, "
                    "and allow extra travel time.").format(bifi_score)
-        elif bifi_score >= 41:
+        elif bifi_score >= 30:
             return ("🟡 MODERATE RISK (BIFI {:.0f}/100): Black ice possible in spots. "
                    "Exercise caution on bridges and in shaded areas. Drive defensively.").format(bifi_score)
-        elif bifi_score >= 21:
+        elif bifi_score >= 10:
             return ("🟢 LOW RISK (BIFI {:.0f}/100): Black ice unlikely but not impossible. "
                    "Remain alert, especially in early morning hours.").format(bifi_score)
         else:
